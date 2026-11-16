@@ -1,0 +1,991 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Pre-Book Tracker</title>
+<style>
+  /* Layout: compact utility dashboard — slim header, summary cards, conversion bar, detailed data tables. Analytics-neutral palette, indigo accent. */
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f0f2f5;
+    --border: #e2e5ea; --border-strong: #cfd4dc;
+    --fg: #1a1d23; --fg-muted: #656c78; --fg-faint: #8b93a0;
+    --accent: #4f46e5; --accent-soft: #eef0fe;
+    --good: #0f9d6b; --good-soft: #e3f6ee; --warn: #c2410c; --warn-soft: #fdeede;
+    --shadow: 0 1px 2px rgba(20,23,30,.05), 0 2px 6px rgba(20,23,30,.04);
+    --r: 10px;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101216; --surface: #191c22; --surface-2: #20242b;
+      --border: #2a2f38; --border-strong: #39404b;
+      --fg: #eceef2; --fg-muted: #9aa2af; --fg-faint: #6d7684;
+      --accent: #8b85f5; --accent-soft: #23243a;
+      --good: #34d399; --good-soft: #163028; --warn: #fb923c; --warn-soft: #30210f;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.28);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101216; --surface: #191c22; --surface-2: #20242b;
+    --border: #2a2f38; --border-strong: #39404b;
+    --fg: #eceef2; --fg-muted: #9aa2af; --fg-faint: #6d7684;
+    --accent: #8b85f5; --accent-soft: #23243a;
+    --good: #34d399; --good-soft: #163028; --warn: #fb923c; --warn-soft: #30210f;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.28);
+    color-scheme: dark;
+  }
+
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.45; margin: 0; font-size: 14px; }
+  .wrap {
+    max-width: 1680px; margin: 0 auto;
+    padding-left: max(14px, env(safe-area-inset-left, 0px));
+    padding-right: max(14px, env(safe-area-inset-right, 0px));
+    padding-block: 0 44px;
+  }
+
+  header.top {
+    padding-block: 16px 12px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .brand h1 { font-size: 1.12rem; font-weight: 700; letter-spacing: -.02em; margin: 0; display:flex; align-items:center; gap:8px; }
+  .brand h1::before { content:""; width:9px; height:9px; border-radius:2px; background:var(--accent); display:inline-block; }
+  .hdr-actions { display:flex; align-items:center; gap:8px; }
+  .icon-btn, .theme-btn {
+    font: inherit; font-size: .8rem; cursor: pointer; background: var(--surface); color: var(--fg-muted);
+    border: 1px solid var(--border-strong); border-radius: 7px; padding: 6px 11px; white-space:nowrap;
+  }
+  .icon-btn { background: var(--accent); color:#fff; border-color: var(--accent); font-weight:600; }
+  .icon-btn:hover { filter: brightness(1.06); }
+  .theme-btn:hover { border-color: var(--fg-faint); color: var(--fg); }
+
+  /* ---- upload area ---- */
+  #uploadUI { }
+  .drop {
+    border: 1.5px dashed var(--border-strong); border-radius: var(--r); background: var(--surface);
+    padding: 20px 18px; text-align: center; transition: border-color .15s, background .15s; cursor: pointer;
+  }
+  .drop.drag { border-color: var(--accent); background: var(--accent-soft); }
+  .drop h2 { margin: 0 0 3px; font-size: .95rem; }
+  .drop p { margin: 0; color: var(--fg-muted); font-size: .8rem; }
+  .drop .pill { display:inline-block; margin-top:10px; background: var(--accent); color:#fff; font-size:.82rem; font-weight:600; padding:7px 15px; border-radius:7px; }
+  .filelist { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
+  .filechip { font-size: .75rem; background: var(--surface-2); border:1px solid var(--border); border-radius: 18px; padding: 3px 9px 3px 11px; display:flex; align-items:center; gap:6px; color: var(--fg-muted); }
+  .filechip b { color: var(--fg); font-weight: 600; }
+  .filechip button { border:none; background:none; color:var(--fg-faint); cursor:pointer; font-size:.95rem; line-height:1; padding:0; }
+  .filechip button:hover { color: var(--warn); }
+
+  .runbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:12px; }
+  .btn-primary { font: inherit; font-weight:600; font-size:.88rem; cursor:pointer; background: var(--accent); color:#fff; border:none; border-radius:7px; padding:9px 18px; }
+  .btn-primary:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-ghost { font:inherit; font-size:.8rem; cursor:pointer; background:var(--surface); color:var(--fg-muted); border:1px solid var(--border-strong); border-radius:7px; padding:8px 12px; }
+  .btn-ghost:hover { color:var(--fg); }
+  .status { font-size:.8rem; color: var(--fg-muted); }
+  .status.err { color: var(--warn); }
+
+  details.cfg { margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+  details.cfg > summary { cursor: pointer; list-style: none; padding: 10px 14px; font-weight: 600; font-size: .8rem; color: var(--fg-muted); display:flex; align-items:center; gap:7px; }
+  details.cfg > summary::-webkit-details-marker { display: none; }
+  details.cfg > summary::before { content: "▸"; color: var(--fg-faint); transition: transform .15s; }
+  details.cfg[open] > summary::before { transform: rotate(90deg); }
+  .cfg-body { padding: 2px 14px 14px; border-top: 1px solid var(--border); }
+  .kw-row { margin-top: 12px; }
+  .kw-row label span { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-faint); font-weight:600; display:block; margin-bottom:4px; }
+  .kw-row textarea { width:100%; font-family: var(--mono); font-size:.76rem; padding:7px 9px; border-radius:6px; border:1px solid var(--border-strong); background:var(--bg); color:var(--fg); resize:vertical; min-height:38px; }
+  .cfg-note { font-size:.74rem; color: var(--fg-muted); margin: 7px 0 0; }
+
+  .ok-banner { margin-top:12px; display:flex; align-items:center; gap:9px; background:var(--good-soft); color:var(--good); border:1px solid color-mix(in srgb, var(--good) 30%, transparent); border-radius:var(--r); padding:10px 14px; font-size:.84rem; font-weight:600; }
+  .ok-banner .big { font-size:1rem; }
+
+  /* ---- cards ---- */
+  .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:10px; margin: 16px 0 6px; }
+  .card { background: var(--surface); border:1px solid var(--border); border-radius: var(--r); padding: 12px 13px; box-shadow: var(--shadow); min-width:0; }
+  .card .lab { font-size:.64rem; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-faint); font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:5px; line-height:1.3; }
+  .card .val { font-size: clamp(1.05rem, 2.4vw, 1.4rem); font-weight:700; letter-spacing:-.02em; font-variant-numeric: tabular-nums; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .sub { font-size:.72rem; color:var(--fg-muted); margin-top:3px; }
+  .card.accent { border-left: 3px solid var(--accent); }
+  .card.good { border-left: 3px solid var(--good); }
+  .card.warn { border-left: 3px solid var(--warn); }
+  .card .val.g { color: var(--good); }
+  .dot { width:7px;height:7px;border-radius:50%; display:inline-block; }
+
+  .bar-wrap { margin: 6px 0 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:12px 14px; box-shadow:var(--shadow); }
+  .bar-wrap .lab { font-size:.74rem; color:var(--fg-muted); margin-bottom:8px; display:flex; justify-content:space-between; gap:10px; }
+  .bar-track { height:11px; background:var(--surface-2); border-radius:7px; overflow:hidden; display:flex; }
+  .bar-fill { background:var(--good); height:100%; transition: width .5s ease; }
+  .bar-rest { background: var(--border-strong); height:100%; flex:1; }
+
+  /* ---- tabs ---- */
+  .tabs { display:flex; gap:2px; margin:18px 0 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .tab { font:inherit; font-size:.82rem; font-weight:600; cursor:pointer; background:none; border:none; color:var(--fg-muted); padding:8px 12px; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tab.on { color:var(--accent); border-bottom-color: var(--accent); }
+  .tab .ct { font-size:.7rem; color:#fff; background:var(--fg-faint); font-weight:700; margin-left:5px; padding:1px 6px; border-radius:10px; }
+  .tab.on .ct { background: var(--accent); }
+
+  .tablebar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0 8px; }
+  .search { font:inherit; font-size:.82rem; padding:7px 10px; border-radius:7px; border:1px solid var(--border-strong); background:var(--surface); color:var(--fg); min-width:180px; flex:1 1 200px; max-width:340px; }
+  .filt { font:inherit; font-size:.8rem; padding:6px 9px; border-radius:7px; border:1px solid var(--border-strong); background:var(--surface); color:var(--fg); max-width:200px; }
+  .filt-lab { display:flex; align-items:center; gap:5px; font-size:.72rem; color:var(--fg-faint); font-weight:600; }
+  .filt-lab input { font:inherit; font-size:.78rem; padding:5px 7px; border-radius:6px; border:1px solid var(--border-strong); background:var(--surface); color:var(--fg); color-scheme: light dark; }
+  .filt-spacer { display:none; }
+  .tablebar { flex-wrap:nowrap; }
+  @media (max-width: 640px){ .tablebar { flex-wrap:wrap; } }
+  /* searchable multi-select */
+  .ms { position:relative; min-width:200px; max-width:none; flex:1 1 220px; }
+  .ms-control { display:flex; flex-wrap:wrap; gap:4px; align-items:center; border:1px solid var(--border-strong); background:var(--surface); border-radius:7px; padding:3px 6px; min-height:33px; cursor:text; }
+  .ms-control:focus-within { border-color:var(--accent); }
+  .ms-chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .ms-chip { display:inline-flex; align-items:center; gap:4px; background:var(--accent-soft); color:var(--accent); font-size:.72rem; font-weight:600; padding:2px 4px 2px 8px; border-radius:12px; max-width:170px; }
+  .ms-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ms-chip button { border:none; background:none; color:var(--accent); cursor:pointer; font-size:.9rem; line-height:1; padding:0; }
+  .ms-input { flex:1; min-width:70px; border:none; background:none; color:var(--fg); font:inherit; font-size:.8rem; padding:4px 2px; outline:none; }
+  .ms-menu { position:absolute; z-index:20; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1px solid var(--border-strong); border-radius:8px; box-shadow:var(--shadow); max-height:300px; overflow:auto; padding:4px; }
+  .ms-head { display:flex; justify-content:space-between; align-items:center; padding:3px 8px 5px; font-size:.7rem; color:var(--fg-faint); border-bottom:1px solid var(--border); margin-bottom:3px; }
+  .ms-head button { border:none; background:none; color:var(--accent); cursor:pointer; font:inherit; font-size:.72rem; font-weight:600; }
+  .ms-opt { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:.8rem; }
+  .ms-opt:hover { background:var(--surface-2); }
+  .ms-opt.sel { color:var(--accent); font-weight:600; }
+  .ms-opt .box { width:15px; height:15px; border:1.5px solid var(--border-strong); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; font-size:.7rem; flex:none; }
+  .ms-opt.sel .box { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .ms-opt .cnt { margin-left:auto; color:var(--fg-faint); font-size:.72rem; font-weight:600; }
+  .ms-empty { padding:10px; color:var(--fg-faint); font-size:.78rem; text-align:center; }
+  .tbl-scroll { overflow:auto; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow); max-height:72vh; }
+  table { border-collapse: collapse; width:100%; font-size:.78rem; }
+  thead th { position: sticky; top:0; background: var(--surface-2); z-index:1; text-align:left; font-weight:600; color:var(--fg-muted); white-space:nowrap; padding:8px 11px; border-bottom:1px solid var(--border-strong); font-size:.68rem; text-transform:uppercase; letter-spacing:.03em; }
+  tbody td { padding:7px 11px; border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:top; font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: var(--surface-2); }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr.row-conv { background: color-mix(in srgb, var(--good) 8%, transparent); }
+  tbody tr.row-conv:hover { background: color-mix(in srgb, var(--good) 14%, transparent); }
+  td.hl { background: var(--good-soft); box-shadow: inset 2px 0 0 var(--good); }
+  td.hl.first { box-shadow: inset 3px 0 0 var(--good); }
+  td.nm { font-weight:600; }
+  td.prod { white-space:normal; min-width:150px; max-width:260px; }
+  .tag { display:inline-block; font-size:.68rem; font-weight:600; padding:2px 7px; border-radius:16px; white-space:nowrap; }
+  .tag.conv { background: var(--good-soft); color: var(--good); }
+  .tag.open { background: var(--warn-soft); color: var(--warn); }
+  .tag.sku-name { background: var(--accent-soft); color: var(--accent); }
+  .tag.kw { background: var(--surface-2); color: var(--fg-muted); }
+  .num { text-align:right; }
+  .mono { font-family: var(--mono); font-size:.92em; }
+  .empty-state { text-align:center; padding:40px 18px; color:var(--fg-faint); font-size:.86rem; }
+  .muted { color: var(--fg-faint); }
+
+  .summary-block { margin-top:14px; }
+  .summary-block h3 { font-size:.9rem; font-weight:700; margin:0 0 3px; display:flex; align-items:center; gap:7px; }
+  .summary-block h3 .n { font-size:.7rem; font-weight:600; color:#fff; background:var(--accent); padding:1px 7px; border-radius:10px; }
+  .summary-block h3 .sum-copy { margin-left:auto; font-size:.72rem; padding:5px 11px; font-weight:600; }
+  .summary-block p.desc { margin:0 0 8px; font-size:.76rem; color:var(--fg-muted); }
+  .summary-block .tbl-scroll { max-height:60vh; }
+  tfoot td { position:sticky; bottom:0; background:var(--surface-2); font-weight:700; border-top:2px solid var(--border-strong); }
+  td.diag { background: var(--accent-soft); font-weight:700; }
+  .busy { position:fixed; inset:0; background:color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter:blur(2px); display:flex; align-items:center; justify-content:center; z-index:50; }
+  .busy-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--shadow); padding:18px 22px; display:flex; align-items:center; gap:12px; font-size:.86rem; font-weight:600; color:var(--fg); max-width:90%; }
+  .spinner { width:20px; height:20px; border:2.5px solid var(--border-strong); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; flex:none; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){ .spinner{ animation-duration:1.6s; } }
+  code { font-family: var(--mono); font-size:.82em; background:var(--surface-2); padding:1px 5px; border-radius:4px; }
+
+  @media (max-width: 520px){
+    .cards { grid-template-columns: repeat(auto-fit, minmax(118px,1fr)); }
+    .brand h1 { font-size:1rem; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Pre-Book Tracker</h1></div>
+    <div class="hdr-actions">
+      <button class="icon-btn" id="headerChoose" type="button" hidden>＋ Choose files</button>
+      <button class="theme-btn" id="themeBtn" type="button">◐</button>
+    </div>
+  </header>
+
+  <div id="uploadUI">
+    <div class="drop" id="drop">
+      <h2 id="dropTitle">Drop Shopify export files here</h2>
+      <p>One consolidated file or several (per month / per day). Accepts .csv, .xlsx, .xls</p>
+      <span class="pill" id="dropPill">Choose files</span>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" multiple hidden>
+      <div class="filelist" id="filelist"></div>
+    </div>
+
+    <div class="ok-banner" id="okBanner" hidden></div>
+
+    <div class="runbar" id="runbar" hidden>
+      <button class="btn-primary" id="runBtn" type="button">Create dashboard</button>
+      <button class="btn-ghost" id="addMore" type="button">+ Add more files</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <details class="cfg">
+      <summary>Detection rules (optional — already set)</summary>
+      <div class="cfg-body">
+        <p class="cfg-note">These defaults run automatically. Edit only to tune, then click Create dashboard again.</p>
+        <div class="kw-row">
+          <label><span>Pre-Book keywords (checked in Lineitem name, SKU &amp; Tags — not the coupon)</span>
+            <textarea id="kwPrebook">pre-book, prebook, pre book, priority access, priority, early access, pre-order, preorder, book</textarea></label>
+        </div>
+        <div class="kw-row">
+          <label><span>D2C markers — keep order if any appears (Notes / Note Attributes / Payment Method / Payment Reference / Tags / Source)</span>
+            <textarea id="kwD2C">gokwik, gokwik snapmint, d2c, prepaid, cod, cash on delivery, razorpay, shopify payments, payu, cashfree</textarea></label>
+        </div>
+        <div class="kw-row">
+          <label><span>Exclude order if any appears (and no D2C marker)</span>
+            <textarea id="kwExclude">cred, snapmint</textarea></label>
+          <p class="cfg-note">"GOKWIK Snapmint" counts as D2C. Standalone "Snapmint" and "Cred" are excluded. The D2C list wins when both appear.</p>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <section id="results" hidden>
+    <div class="cards" id="cards"></div>
+
+    <div class="bar-wrap">
+      <div class="lab"><span>Conversion rate (converted ÷ pre-book orders)</span><span id="convPct" style="font-weight:700;color:var(--fg);">—</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barFill" style="width:0"></div><div class="bar-rest"></div></div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-view="summary" type="button">Summary</button>
+      <button class="tab" data-view="prebook" type="button">Pre-Book orders <span class="ct" id="ctP"></span></button>
+      <button class="tab" data-view="converted" type="button">Converted <span class="ct" id="ctC"></span></button>
+      <button class="tab" data-view="pending" type="button">Pending <span class="ct" id="ctPend"></span></button>
+      <button class="tab" data-view="dropped" type="button">Excluded <span class="ct" id="ctD"></span></button>
+    </div>
+
+    <div class="tablebar" id="tablebar">
+      <input class="search" id="search" type="text" placeholder="Search any column — customer, SKU, order, coupon…">
+      <label class="filt-lab">From <input type="date" id="dateFrom"></label>
+      <label class="filt-lab">To <input type="date" id="dateTo"></label>
+      <div class="ms" id="prodFilter">
+        <div class="ms-control" id="msControl">
+          <span class="ms-chips" id="msChips"></span>
+          <input type="text" class="ms-input" id="msInput" placeholder="All products" autocomplete="off">
+        </div>
+        <div class="ms-menu" id="msMenu" hidden></div>
+      </div>
+      <button class="btn-ghost" id="clearFilters" type="button">Clear</button>
+      <span class="filt-spacer"></span>
+      <button class="btn-ghost" id="exportBtn" type="button">⧉ Copy table</button>
+    </div>
+
+    <div class="tbl-scroll" id="tblScroll">
+      <table id="table"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+    </div>
+
+    <div id="summaryWrap" hidden></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+
+  // ---- theme ----
+  const root = document.documentElement;
+  $("#themeBtn").addEventListener("click", () => {
+    const cur = root.getAttribute("data-theme");
+    const sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const now = cur || (sysDark ? "dark" : "light");
+    root.setAttribute("data-theme", now === "dark" ? "light" : "dark");
+  });
+
+  // ---- fixed column map (standard Shopify export) ----
+  const COL = {
+    order:"Name", date:"Created at", paid:"Paid at", customer:"Email", custname:"Billing Name",
+    shipname:"Shipping Name", phone:"Phone", billphone:"Billing Phone", shipphone:"Shipping Phone",
+    sku:"Lineitem sku", product:"Lineitem name", liprice:"Lineitem price", qty:"Lineitem quantity",
+    coupon:"Discount Code", discAmt:"Discount Amount", total:"Total", subtotal:"Subtotal",
+    notes:"Notes", noteattr:"Note Attributes", payment:"Payment Method", payref:"Payment Reference",
+    tags:"Tags", source:"Source", finstatus:"Financial Status", id:"Id"
+  };
+  const DEDUP_KEYS = ["Name","Lineitem name","Lineitem sku","Lineitem quantity","Lineitem price",
+                      "Lineitem discount","Discount Code","Total","Created at","Email","Id"];
+
+  // ---- master EAN (SKU) -> Product_Color catalog, for canonical product mapping & filters ----
+  const EAN_MAP={"0":"Mustang Torq_Ampvault V20 B","48239090":"N_USB Cable QR Card","8906133859282":"1.5M C-C Mustang Boost Charging Cable","8906133858278":"2 core charging cable 1Mtr","8906133853594":"22mm Groovy Silicone Strap Black","8906133853600":"22mm Leather Strap Black","8906133853631":"22mm Mag. Silicone Strap Brown","8906133853617":"22mm Magnetic Chain Strap Black","8906133853624":"22mm Metal Strap Silver","8906133853648":"22mm Plain Silicone Strap Black","8906133853655":"22mm Sports Silicone Strap White","8906133853822":"44 mm Metal Buckle Strap","8906133853587":"44mm Magnetic Buckle Silicone Strap Blue","8910000000000":"44mm Wave Silicone Strap Orange","8906133852504":"Aero Lite_Emerald","8906133857547":"Alora_Red Wine","8906133857530":"Alora_Rose Gold","8906133857523":"Alora_Silver","8906133853280":"Ammo Wired_Black","8906133851613":"Ammo_Black","8906133859077":"Ampvault V10 Pro_Black","8906133855475":"AmpVault V10_Coffee","8906133859305":"AmpVault V10_Grey","8906133855468":"AmpVault V10_Jet Black","8906133855451":"AmpVault V10_Powder Blue","8906133859152":"Ampvault V20 Pro V2_Black","8906133858858":"AmpVault V20 Pro_Jet Black","8906133859084":"AmpVault V20_Grey","8906133855482":"AmpVault V20_Pure Black","8906133855499":"AmpVault V20_Red","8906133855505":"AmpVault V20_Teal","8906133856120":"AmpVault V50_Black","8906133850180":"Anchor_old_Black","8906133856649":"Anchor_Pure Black","8906133850357":"Arc_Black","8906133850364":"Arc_BLUE","8906133850371":"Arc_Green","8906133859176":"Arrow ANC_Black","8906133854126":"Astra Neo_Black","8906133854133":"Astra Neo_White","8906133852702":"Astra_Black Gloss","8906133857714":"Astra_Powder Blue","8906133855680":"Astra_Shadow Black","8906133852726":"Astra_Smoky Metal","8906133852719":"Astra_White Opal","8906133853891":"BAC_22mm Silicone Strap Active Black","8908012122593":"Bass Bar 2.1_Black","8906133858117":"Bassbox Groove Q12_Pure Bla","8906133858056":"Bassbox Groove Q14_Black","8906133858100":"Bassbox Groove Q20_Jet Blac","8906133856342":"Bassbox Q10_Black","8906133858902":"Bassbox Q10_Jet Black","8906133857066":"Bassbox Q10_Pure Black","8906133857233":"Bassbox Q20_Black","8906133856175":"Bassbox Q30_Black","8906133856335":"Bassbox Q5_Black","8906133858919":"Bassbox Q5_Pure Black","8906133856151":"Bassbox Q60_Black","8906133858803":"Bassbox Q60_Pure Black","8906133858094":"Bassbox Rave Q10_Jet Black","8906133858049":"Bassbox Rave Q5_Black","8906133856168":"Bassbox X100_Black","8906133854140":"Bassbox X120_Black","8906133856359":"Bassbox X160_Jet Black","8906133854157":"Bassbox X180_Black","8906133858810":"Bassbox X20_Jet Black","8906133857288":"Bassbox X20_Pure Black","8906133856199":"Bassbox X25_Black","8906133854645":"Bassbox X250_Black","8906133855369":"Bassbox X30_Pure Black","8906133856465":"Bassbox X400_Pure Black","8906133856441":"Bassbox X440_Jet Black","8906133854652":"Bassbox X500_Black","8906133856526":"Bassbox X60_Black","8906133855130":"Bassbox X60_Jet Black","8906133858841":"Bassbox X60_Pure Black","8906133855161":"Bassbox X625_Pure Black","8908012122166":"Basswood_Silver","8908012122289":"Blast_Black","8906133859633":"Boost_Black","8908012122173":"Boost_Grey","8906133855338":"Boost_Jet Black","8908012122180":"Boost_Red","8906133856410":"Brune_Black","8906133856601":"Brune_Peach","8908012122357":"Buster_Black","8908012122906":"Buster_Red","8908012122913":"Buster_Yellow","8906133853327":"CCharge_Blue","8906133853334":"CCharge_Green","8908012122951":"Combuds_Black","8908012122968":"Combuds_White","8906133853785":"Cosmic R _Jet Black","8906133853068":"Cosmic R Pro_Black","8906133853044":"Cosmic R Pro_Blue","8906133853051":"Cosmic R Pro_Snow Leather","8906133851255":"Cosmic R_Black","8906133851262":"Cosmic R_Blue","8906133851286":"Cosmic R_Bubblegum Pink","8906133853778":"Cosmic R_Dark Blue","8906133851385":"Cosmic R_Green","8906133854164":"Cosmic R_Pure Black","8906133853792":"Cosmic R_Snow Leather","8906133851279":"Cosmic R_White","8906133850661":"Cosmic_Black","8906133850678":"Cosmic_Blue","8906133850685":"Cosmic_Pink","8906133859374":"Coup_Hunter Green","8906133859381":"Coup_Raven Black","8906133852788":"Craft_Cobalt Blue","8906133852801":"Craft_Grape Purple","8906133852795":"Craft_Smoky White","8906133853037":"Craft_Tarmac Black","8908012122319":"Crest_Black","8906133857042":"Crown Pro_Black","8906133857059":"Crown Pro_Blue","8906133854515":"Crown Pro_Carbon Black","8906133854218":"Crown Pro_Denim Blue","8906133857035":"Crown Pro_Metal Black","8906133855659":"Crown Pro_Midnight Black","8906133854201":"Crown Pro_Obsidian Black","8906133855666":"Crown Pro_Phantom Black","8906133855673":"Crown Pro_Skyline Blue","8906133854225":"Crown Pro_Tangerine","8906133854829":"Crown R Pro 2_Bourbon","8906133855192":"Crown R Pro 2_Charcoal Bla","8906133852160":"Crown R Pro_Black","8906133856892":"Crown R Pro_Chrome","8906133855000":"Crown R Pro_Chrome Rig","8906133852917":"Crown R Pro_Jet Black","8906133856885":"Crown R Pro_Metal Black","8906133852177":"Crown R Pro_Orange","8906133855598":"Crown R Pro_Pure Black","8906133852184":"Crown R Pro_Silver","8906133852351":"Crown R_Black","8906133852375":"Crown R_Bullet Silver","8906133852368":"Crown R_Coal Black","8906133852146":"Crown X_Black","8906133853839":"Crown X_Chrome Green","8906133852153":"Crown X_Green","8906133852993":"Crown X_Jet Black","8906133852986":"Crown X_Pure Black","8906133853853":"Crown X_Silver","8906133852061":"Crown_Black","8906133852078":"Crown_Blue","8906133857028":"Crown_Chrome","8906133857004":"Crown_Denim Blue","8906133854331":"Crown_Luxe Silver","8906133852092":"Crown_Orange","8906133856991":"Crown_Pure Black","8906133853372":"Crown_Silver","8906133857011":"Crown_Tangerine","8906133852085":"Crown_Yellow","8906133856540":"CruiseCam X1 GPS_Midnight Black","8906133854577":"CruiseCam X1 GPS_Space Grey","8906133854560":"CruiseCam X1_Midnight Black","8906133856533":"CruiseCam X1_Space Grey","8906133855819":"CruiseCam X3 Pro_Black","8906133854638":"CruiseCam X3_Jet Black","8906133857103":"CruiseCam X5 Pro_Jet Black","8906133854898":"CruiseCam X5 Pro_Pure Black","8908012122128":"Crystal_Red","8906133851620":"Curve ANC_Black","8906133851637":"Curve ANC_Green","8906133853723":"Curve Buds Pro_Beach Rose","8906133853747":"Curve Buds Pro_Nautical Black","8906133853730":"Curve Buds Pro_White Wave","8906133853754":"Curve Max_Black","8906133853761":"Curve Max_Blue","8908012122838":"Curve Pro_Green","8908012122821":"Curve Pro_Grey","8908012122845":"Curve Pro_Red","8908012122005":"Curve_Black","8908012122135":"Curve_BLUE","8906133855444":"Curve_Indigo","8906133855420":"Curve_Jet Black","8906133855406":"Curve_Navy Blue","8906133855437":"Curve_Pure Black","8908012122012":"Curve_Red","8906133850494":"CurveX_Black","8906133850500":"CurveX_BLUE","8908012122692":"CurveX_Grey","8906133855871":"Cyborg_Blue Ice","8906133855888":"Cyborg_Pure Black","8906133855987":"Dire_Black","8906133856014":"Dire_Blue","8906133856922":"Dire_Chrome","8906133859237":"Dire_Cloud White","8906133858124":"Dire_Denim Blue","8906133855994":"Dire_Jet Black","8906133856939":"Dire_Metal Black","8906133859220":"Dire_Obsidian Black","8906133856908":"Dire_Pure Black","8906133856007":"Dire_Silver","8906133852238":"Dive Evo_Black","8906133852597":"Dive Evo_Blue","8906133852245":"Dive Evo_Orange","8906133855291":"Dive Evo_Silver","8906133851798":"Dive Pro_Black","8906133851804":"Dive Pro_Blue","8906133851811":"Dive Pro_Cream","8906133852511":"Dive X_Black","8906133853570":"Dive X_Black Metal","8906133851231":"Dive_Beige","8906133851217":"Dive_Black","8906133851224":"Dive_Green","8906133859091":"Dive_Peach Pink","8906133859558":"Dive_Phantom Black","8906133853556":"Dive+_Black Coffee","8906133855284":"Dive+_Chrome","8906133853204":"Dive+_Denim Blue","8906133859053":"Dive+_Espresso","8906133851088":"Dive+_Icy Blue","8906133851071":"Dive+_Jet Black","8906133851095":"Dive+_Tan","8906133852054":"Drift - Charging Cable_Blac","8906133852320":"Drift 2_Black","8906133852337":"Drift 2_Blue","8906133857110":"Drift 2_Carbon Black","8906133857127":"Drift 2_Metal Black","8906133852344":"Drift 2_Pink","8906133857141":"Drift 2_Sapphire","8906133857134":"Drift 2_Storm Grey","8906133855949":"Drift Max_Carbon Black","8906133855956":"Drift Max_Coal Black","8906133855970":"Drift Max_Pure Black","8906133855932":"Drift Max_Silver","8906133851767":"Drift Pro_Black","8906133851774":"Drift Pro_Blue","8906133851781":"Drift Pro_Cream","8906133851651":"Drift_Beige","8906133850777":"Drift_Black","8906133850784":"Drift_Blue","8906133851668":"Drift_Green","8906133850791":"Drift_Grey","8906133854461":"Drift_Gunmetal","8906133854478":"Drift_Peach","8906133851644":"Drift_Sand Black","8906133855697":"Drift+_Black","8906133851323":"Drift+_Black Coffee","8906133855703":"Drift+_Blue","8906133855727":"Drift+_Charcoal Black","8906133854508":"Drift+_Chrome","8906133851330":"Drift+_Denim Blue","8906133854928":"Drift+_Graphite Metal","8906133851828":"Drift+_Green","8906133859169":"Drift+_Gunmetal","8906133851675":"Drift+_Icy Blue","8906133851606":"Drift+_Jet Black","8906133855208":"Drift+_Ocean Black","8906133854492":"Drift+_Peach Fuzz","8906133855710":"Drift+_Royal Blue","8906133851347":"Drift+_Snow Leather","8906133855567":"Drift+_Swing Beige","8906133855550":"Drift+_Swing Black","8906133855543":"Drift+_Swing Blue","8906133851682":"Drift+_Tan","8906133859596":"Droid_Forest Green","8906133859589":"Droid_Ocean Blue","8906133857806":"Earl_Ivory White","8906133857783":"Earl_Obsidian Black","8906133857790":"Earl_Sapphire Blue","8906133858612":"Earl_UK Ivory White","8906133858636":"Earl_UK Obsidian Black","8906133851378":"Edge_Beige","8906133851354":"Edge_Black","8906133851361":"Edge_Green","8906133854683":"Ember_Black Gloss","8906133855215":"Ember_Smoky Metal","8906133854690":"Ember_White Opal","8906133850548":"Encore X_Black","8906133850555":"Encore X_White","8906133850258":"Encore_Black","8906133850265":"Encore_White","8906133850692":"EQCharge_Black","8906133850708":"EQCharge_BLUE","8906133857264":"EQCharge_Jet Black","8906133859701":"EQCharge_Matte Black","8906133850715":"EQCharge_Red","8906133859718":"EQCharge_Royal Blue","8906133857271":"EQCharge_Teal","8906133850098":"Escape_Black","8906133850104":"Escape_BLUE","8906133850937":"Escape_Grey","8906133850944":"Escape_Indigo","8906133850111":"Escape_Red","8906133853808":"FCharge Max_Black","8906133853815":"FCharge Max_Blue","8906133850562":"FCharge_Black","8906133850579":"FCharge_Blue","8906133857240":"FCharge_Pure Black","8906133851040":"FCharge_Red","8906133857257":"FCharge_Royal Blue","8906133851569":"FChargePro_Black","8906133851576":"FChargePro_Green","8906133859619":"Flare_Black","8906133855604":"Flex_Black","8906133855611":"Flex_Blue","8906133856502":"Flex_Jet Black","8906133856496":"Flex_Navy Blue","8906133858780":"Flex_Pure Black","8906133858797":"Flex_Royal Blue","8908012122500":"FlowX_BLUE","8908012122487":"FlowX_Grey","8908012122494":"FlowX_Red","8906133857196":"Fluid X Pro_Beige","8906133857189":"Fluid X Pro_Black","8906133858766":"Fluid X Pro_Jet Black","8906133856625":"Fluid X Pro_Raven Black","8906133858773":"Fluid X Pro_Sand Beige","8906133856632":"Fluid X Pro_Skin Beige","8906133856564":"Fluid X_Black","8906133858728":"Fluid X_Electric Black","8906133856571":"Fluid X_Green_old","8906133856618":"Fluid X_Ivory White","8906133857202":"Fluid X_Jet Black","8906133857219":"Fluid X_Pine Green","8906133858735":"Fluid X_Polar White","8906133858759":"Fluid X_Spring Green","8906133857226":"Fluid X_White","8906133856588":"FluidX_Raven Black","8906133856595":"FluidX_Skin Beige","8906133855314":"Forge_Carbon Black","8906133854997":"Forge_Regal","8906133850166":"Freepods Pro_Black Grey","8908012122999":"Freepods Pro_Black Red","8906133850173":"Freepods Pro_BLUE","8906133850159":"Freepods Pro_Grey","8908012122715":"Freepods_Black Grey","8908012122722":"Freepods_Black Red","8908012122739":"Freepods_Grey","8906133850005":"FX1_Black","8906133850012":"FX1_BLUE","8906133850029":"FX1_White","8906133850722":"FXCharge_Black","8906133850739":"FXCharge_BLUE","8906133850869":"FXCharge_Green","8906133850746":"FXCharge_Red","8906133857769":"G GO BOLD Q2_Black","8906133857776":"G GOBOLD Z40 V2_Opal Black","8906133850326":"Gearpods_Black","8906133850333":"Gearpods_Blue","8906133851248":"Gearpods_Red","8906133850340":"Gearpods_White","8908012122876":"Groove_Green","8908012122883":"Groove_Grey","8908012122869":"Groove_Red","8906133853266":"GXCharge_Black","8906133853273":"GXCharge_Blue","8906133855239":"K10_Blue Ice","8906133855222":"K10_Pure Black","8906133852443":"K20_Black","8906133852450":"K20_White","8906133856687":"K30_Black","8906133856700":"K30_Blue","8906133856717":"K30_Brown","8906133856694":"K30_White","8906133853099":"K35_Black","8906133855246":"K35_Blue","8906133855765":"K35_Glacier Blue","8906133853105":"K35_Green","8906133855772":"K35_Pine Green","8906133855826":"K35_Space Black","8906133853952":"K40_Berry Red","8906133853969":"K40_Denim Blue","8906133854195":"K40_Electric Black","8906133853945":"K40_Ivory White","8906133853938":"K40_Khaki Green","8906133855789":"K45_Berry Red","8906133853129":"K45_Blue","8906133856472":"K45_Denim Blue","8906133854324":"K45_Electric Black","8906133855802":"K45_Ivory White","8906133853112":"K45_Red","8906133853136":"K45_White","8906133853143":"K60_Black","8906133853709":"K60_Blue","8906133854416":"K60_Candy Cane","8906133854393":"K60_Jet Black","8906133854409":"K60_Powder Blue","8906133853716":"K60_Red","8906133854584":"Klarity 1_Aquamarine","8906133855628":"Klarity 1_Black","8906133855635":"Klarity 1_Grey","8906133854522":"Klarity 1_Midnight Black","8906133854546":"Klarity 1_Skyline Grey","8906133855642":"Klarity 1_Teal","8906133855574":"Klarity 3_Black","8906133856816":"Klarity 3_Grey","8906133856823":"Klarity 3_Jet Black","8906133854867":"Klarity 3_Obsidian Black","8906133855581":"Klarity 3_Silver","8906133854874":"Klarity 3_Smoky Metal","8906133856212":"Klarity 4_Black","8906133856809":"Klarity 4_Electric White","8906133856793":"Klarity 4_Jet Black","8906133856724":"Klarity 4_Powder Blue","8906133856205":"Klarity 4_White","8906133859503":"Klarity ANC_Black","8906133859527":"Klarity ANC_Pink","8906133859510":"Klarity ANC_Teal","8906133855383":"Kliff_Metal Black","8906133855376":"Kliff_Raven Black","8908012122463":"Livebuds_Black","8908012122517":"Livebuds_Black Grey","8908012122708":"Livebuds_Black Red","8906133850821":"Loop 2_Black","8906133850838":"Loop 2_Teal Blue","8908012122142":"Loupe_Black","8908012122647":"Loupe_Blue Black","8908012122630":"Loupe_Grey Black","8908012122159":"Loupe_Red","8906133850906":"Maverick_Black","8906133859534":"Maverick_Powder Blue","8906133859541":"Maverick_Raven Black","8906133853464":"Mirage_Amber Blue","8906133854171":"Mirage_Black Gold","8906133853440":"Mirage_Coal Black","8906133853457":"Mirage_Inox Steel","8908012122074":"Muse_Black","8908012122067":"Muse_Red","8908012122746":"Musebuds_Black Grey","8908012122753":"Musebuds_Black Red","8906133858261":"Mustang Ampvault V10_Phanto","8906133858216":"Mustang Ampvault V20_Nitro","8906133854614":"Mustang Dash_Dash","8906133854621":"Mustang Derby_Derby","8906133855901":"Mustang Dyno_Silver","8906133859497":"Mustang Fort_Apex Orange","8906133859480":"Mustang Fort_Charcoal Blac","8906133859565":"Mustang Fort_Ignite Gold","8906133859572":"Mustang Fort_Nitro Ice","8906133858254":"Mustang GT 20_Turbo Black","8906133858247":"Mustang GT 20_Turbo Ice","8906133858223":"Mustang GT 40_Apex Black","8906133858230":"Mustang GT 40_Oxford White","8906133858827":"Mustang Muscle_Black Eclip","8906133857813":"Mustang Muscle_Black Fury","8906133857820":"Mustang Muscle_Frost","8906133858698":"Mustang Muscle_UK Black Fury","8906133858681":"Mustang Muscle_UK Frost","8906133858834":"Mustang Muscle_White Armor","8906133859473":"Mustang Nerve_Classic Dune","8906133859466":"Mustang Nerve_Ignition Bla","8906133859404":"Mustang Nitro_Black GT","8906133859411":"Mustang Nitro_Bronze 302","8906133859398":"Mustang Nitro_Red Blaze","8906133856106":"Mustang Q_Q","8906133857929":"Mustang Racer_Apex Blue","8906133857912":"Mustang Racer_Black Blaze","8906133858667":"Mustang Racer_UK Apex Blue","8906133858674":"Mustang Racer_UK Black Blaze","8906133857998":"Mustang Sprint_Blaze Red","8906133857981":"Mustang Sprint_Nitro Green","8906133858001":"Mustang Sprint_Turbo Yellow","8906133858599":"Mustang Sprint_UK Blaze Red","8906133858582":"Mustang Sprint_UK Turbo Yellow","8906133858957":"Mustang Stallion_Ignite Co","8906133857936":"Mustang Stallion_Nitro Black","8906133858940":"Mustang Stallion_Nitro Ice","8906133857943":"Mustang Stallion_Turbo Ora","8906133858650":"Mustang Stallion_UK Nitro Black","8906133858643":"Mustang Stallion_UK Turbo Orange","8906133856519":"Mustang Thunder_Silver Black","8906133857707":"Mustang Torq_Green","8906133855741":"Mustang Torq_Silver","8906133854607":"Mustang Torq_Torq","8906133855758":"Mustang Torq_Yellow","8906133859367":"Mustang TuneX 102_Yellow","8906133858971":"Mustang Turbo_Black GT","8906133858988":"Mustang Turbo_Bronze 302","8906133858964":"Mustang Turbo_Red Blaze","8906133859336":"Mustang Turner_Silver Blaze","8906133859350":"Mustang Turner_Solar Yellow","8906133859626":"Mustang WiredX_Yellow","8906133855864":"Mutant_Coral White","8906133855857":"Mutant_Jet Black","8906133858513":"Nyxel_Arctic Blue","8906133858537":"Nyxel_Onyx Grey","8906133858520":"Nyxel_Opal Black","8906133858506":"Nyxel_Solar Orange","8908012122548":"Oak_Beige","8908012122555":"Oak_Brown","8906133855031":"Octave_Flamingo Pink","8906133855024":"Octave_Powder Blue","8906133855017":"Octave_Raven Black","8906133855048":"Octave_Spring Green","8906133850753":"Omega_Black","8906133850760":"Omega_White","8906133859183":"Orbit_Eclipse Black","8906133859190":"Orbit_Lunar White","8906133857400":"Partybox X200_Pure Black","8906133855178":"Partybox X50_Vintage Gold","8906133855147":"Partybox X80_Black","8906133857417":"Partybox X80_Jet Black","8908012122784":"Powerbuds_Black","8908012122791":"Powerbuds_Blue","8906133850623":"Powerpods_Black","8906133850630":"Powerpods_White","8906133850647":"Probuds_Black","8908012122449":"Probuds_Grey","8906133850654":"Probuds_White","8906133850395":"Propods X_Black","8906133850418":"Propods X_Red","8906133850401":"Propods X_White","8908012122760":"Propods_Black","8908012122777":"Propods_White","8906133856977":"Pyro_Charcoal Black","8906133856328":"Pyro_Gold Silver","8906133858933":"Pyro_Graphite","8906133856311":"Pyro_Gunmetal","8906133856984":"Pyro_Platinum Gold","8906133858926":"Pyro_Silver","8906133855352":"Q_Beige","8906133855345":"Q_Black","8906133857868":"Q_Cream","8906133857882":"Q_Ice Blue","8906133857875":"Q_Jet Black","8906133857158":"Q_Powder Blue","8906133850036":"Q10_Black","8906133850043":"Q10_White","8908012122890":"Q2 Wired_Black","8908012122241":"Q2_Black","8906133850227":"QCharge_Black","8906133850234":"QCharge_BLUE","8906133850241":"QCharge_Green","8906133854737":"Radian_Amber Blue","8906133854720":"Radian_Coal Black","8906133854805":"Radian_Inox Steel","8908012122432":"Ranger_Black","8906133857639":"Raven_Champagne","8906133857646":"Raven_Emerald Green","8906133857653":"Raven_Ice Mint","8906133852016":"RCHARGE_BLUE","8906133852023":"RCHARGE_Green","8906133855185":"Retroamp X40_Vintage Gold","8906133855154":"Retroamp X60_Royal Gold","8906133855840":"Retroamp Z30_Vintage Gold","8906133855833":"Retroamp Z40_Royal Gold","8908012122371":"Reverb_Black","8906133850951":"Ridge_Black","8906133850975":"Ridge_Brown","8906133850968":"Ridge_Green","8906133851293":"Rig_Black","8906133851309":"Rig_Blue","8906133851316":"Rig_Brown","8906133852825":"Ripple Pro_Black","8906133852832":"Ripple Pro_Blue","8906133852856":"Ripple_Black","8906133852870":"Ripple_Blue","8906133852887":"Ripple_Emerald","8906133856786":"Ripple_Icy Blue","8906133856779":"Ripple_Jet Black","8906133856762":"Ripple_Pure Black","8906133852863":"Ripple_White","8906133852382":"Rito Pro_Green","8906133852399":"Rito Pro_Grey","8906133851743":"RITO_Black","8906133851750":"RITO_White","8906133853211":"Rogue_Black","8906133853228":"Rogue_Silver","8906133853686":"Rover Pro_Ash Black","8906133855963":"Rover Pro_Coal Black","8906133856953":"Rover Pro_Elite","8906133851422":"Rover Pro_Icon","8906133856960":"Rover Pro_Metal Black","8906133856946":"Rover Pro_Pure Black","8906133851415":"Rover Pro_Regal","8906133852610":"Rover Ultra_Black","8906133852627":"Rover Ultra_Brown","8906133854270":"Rover Ultra_Jet Black","8906133852603":"Rover Ultra_Silver","8906133851163":"Rover_Classic Switch","8906133851170":"Rover_Flip","8906133851590":"Rover_Rig","8906133857493":"Saber_Blue","8906133857509":"Saber_Metal Black","8906133857516":"Saber_Titanium","8906133854973":"Scepter_Black","8906133854966":"Scepter_Blue","8906133856489":"Scepter_Graphite Black","8906133857837":"Score_Jet Black","8906133859688":"Sensus_Carbon Black","8906133859695":"Sensus_Electric Blue","8906133855055":"Shadow_Glacier Blue","8906133855062":"Shadow_Pine Green","8906133855079":"Shadow_Space Black","8906133859107":"SlimX_Midnight Silver","8906133859114":"SlimX_Platinum Silver","8908012122609":"Sonic_Black","8908012122616":"Sonic_Grey","8908012122623":"Sonic_Maroon","8906133856748":"Soniq_Black","8906133856755":"Soniq_White","8906133850302":"Soulpods_Black","8906133850319":"Soulpods_White","8908012122043":"Space_Grey","8908012122050":"Space_Red","8908012122210":"SpireX_Black","8908012122197":"Stella_Beige","8906133852535":"Sterling Pro_Black","8906133852542":"Sterling Pro_Silver","8906133852900":"Sterling_Carbon Copper","8906133852894":"Sterling_Midnight Marine","8906133853235":"Sterling_Scarlet Ebony","8908012122975":"Storm X_BLUE","8908012122395":"Storm X_Grey","8908012122401":"Storm X_Red","8908012122579":"Storm_Black","8908012122586":"Storm_Grey","8908012122562":"Storm_Red","8906133852191":"Striker Pro_Black","8906133852207":"Striker Pro_Blue","8906133852214":"Striker Pro_Grey","8906133851439":"Striker_Black","8906133857561":"Striker_Black","8906133851446":"Striker_Blue","8906133851453":"Striker_Cream","8906133854881":"Striker_Metal Black","8906133854911":"Striker_Metal Copper","8906133854904":"Striker_Red Chrome","8906133854539":"Striker_Silver","8906133852108":"Striker+_Black","8906133852115":"Striker+_Blue","8906133852122":"Striker+_Emerald","8906133852139":"Striker+_White","8906133854713":"Surge_Black","8906133854706":"Surge_Blue","8906133859459":"Sway ANC_Ivory Beige","8906133859442":"Sway ANC_Obsidian Black","8906133859435":"Sway_Beige","8906133859428":"Sway_Black","8906133851712":"Swing_Beige","8906133851699":"Swing_Black","8906133851729":"Swing_Blue","8906133850531":"T1_Black","8906133850517":"TCharge_Grey","8906133858865":"Tenet Pro_Crimson Red","8906133858872":"Tenet Pro_Frost White","8906133858896":"Tenet Pro_Olive Green","8906133857745":"Tenet_Midnight Blue","8906133857721":"Tenet_Neon Green","8906133857738":"Tenet_Solar Yellow","8906133857752":"Tenet_Turbo Orange","8906133858551":"Tenet_UK Midnight Blue","8906133858544":"Tenet_UK Turbo Orange","8906133856021":"Thrux_Black","8906133856038":"Thrux_Green","8908012122418":"Thunder_Black","8906133856069":"Trail Pro_Black","8906133857097":"Trail Pro_Chrome","8906133857592":"Trail Pro_Coal Black","8906133856052":"Trail Pro_Jet Black","8906133857080":"Trail Pro_Metal Black","8906133857073":"Trail Pro_Pure Black","8906133856045":"Trail Pro_Silver","8906133857585":"Trail_Black","8906133857851":"Trail_Forest Brown","8906133854430":"Trail_Jade Green","8906133859725":"Trail_Matte Black","8906133854454":"Trail_Metal Black","8906133854447":"Trail_Metal Blue","8906133859244":"Trail_Midnight Earth","8906133857844":"Trail_Night Blue","8906133854423":"Trail_Raven Black","8906133856137":"Trail_Rose Gold","8908012122470":"Tru5ive Pro_Black","8908012122111":"Tru5ive_Black","8908012122852":"Truebuds_BLUE","8908012122678":"Truebuds_Grey","8908012122685":"Truebuds_Red","8906133857455":"Tuff Hawk_Black","8906133857486":"Tuff Hawk_Green","8906133859213":"Tuff Hawk_Midnight Black","8906133857462":"Tuff Hawk_Saffron","8906133857479":"Tuff Hawk_Sandstone","8906133859206":"Tuff Hawk_Storm Black","8906133857622":"Tuff Rivet_Forest Green","8906133857608":"Tuff Rivet_Jet Black","8906133857615":"Tuff Rivet_Rock Beige","8906133859039":"TuneX 102_Pure Black","8906133857332":"TuneX_Black","8906133857356":"TuneX_Blue","8906133857349":"TuneX_White","8908012122302":"Twinpods X_Green","8908012122296":"Twinpods X_Grey","8908012122036":"Twinpods_Green","8908012122029":"Twinpods_Grey","8908012122364":"UFO_Black","8906133854263":"UFO_Black Gloss","8908012122340":"UFO_Red","8906133854256":"UFO_Smoky Metal","8906133854249":"UFO_White Opal","8908012122104":"Unipod_Black","8908012122982":"Unipod_White","8908012122272":"Unplug_Black","8906133850388":"Verve_Black","8908012122234":"Vibe_Black","8906133859664":"Vita_Red Wine","8906133855123":"Vortex_Coral White","8906133855116":"Vortex_Jet Black","8906133855109":"W10_Coral White","8906133855093":"W10_Jet Black","8906133853181":"W20_Glacier Blue","8906133853174":"W20_Pine Green","8906133853167":"W20_Space Black","8906133856656":"W30_Black","8906133856663":"W30_Green","8906133856670":"W30_White","8906133856281":"W35_Black","8906133857363":"W35_Jet Black","8906133856298":"W35_Lavender","8906133857370":"W35_Lilac","8906133857387":"W35_Smoky White","8906133856304":"W35_White","8906133852566":"W40_Berry Red","8906133852559":"W40_Denim Blue","8906133853877":"W40_Electric Black","8906133852573":"W40_Ivory White","8906133852580":"W40_Khaki Green","8906133856830":"W45_Black","8906133856847":"W45_White","8906133852733":"W50_Ash Black","8906133852757":"W50_Blue Lustre","8906133852740":"W50_Ruby Bronze","8906133852764":"W50_Silver Sand","8906133856861":"W60_Black","8906133856878":"W60_Green","8906133856854":"W60_White","8906133859060":"WiredX 200_Black","8906133859008":"WiredX 250_Black","8906133858995":"WiredX 500_Pure Black","8906133850128":"X1 Air_Black","8906133850142":"X1 Air_BLUE","8906133850135":"X1 Air_Red","8906133853976":"X1 Pro Gaming_Black","8906133852030":"X1 Pro_Black","8906133852221":"X1 Pro_Blue","8906133859602":"X1 Pro_Pure Black","8908012122258":"X1_Black","8908012122661":"X1_Blue","8906133850609":"X1_Buds_Black","8906133850616":"X1_Buds_White","8908012122265":"X1_Red","8908012122807":"X1_WL_Black","8908012122814":"X1_WL_Red","8906133853501":"X10 Pro_Blue","8906133852009":"X10 Pro_Green","8906133851996":"X10 Pro_Grey","8906133851392":"X10_BlacK","8906133851408":"X10_White","8908012122388":"X2_Black","8906133856731":"X2_Blue","8908012122524":"X2_Red","8906133850982":"X30_BLUE","8906133850999":"X30_Warm Grey","8906133851460":"X35_Black","8906133851484":"X35_Green","8906133851477":"X35_Grey","8906133851491":"X45_Black","8906133851514":"X45_Green","8906133851507":"X45_Grey","8906133851002":"X50_Black","8906133852306":"X50_BLUE","8906133851736":"X50_Warm Grey","8906133851019":"X50_White","8906133851521":"X60_Black","8906133511538":"X60_BLUE","8906133851538":"X60_Blue Moss","8906133856557":"X70_Black","8906133853419":"X70_Blue","8906133853563":"X70_White","8906133856427":"X90_Black","8906133850197":"XCharge_Black Grey","8906133850913":"XCharge_BLUE","8906133850920":"XCharge_Green","8906133850210":"XCharge_Red Grey","8906133851033":"XCharge_Teal Blue","8906133850203":"XCharge_Yellow Grey","8906133854942":"Xena Pro_Dawn","8906133855734":"Xena Pro_Jungle","8906133854959":"Xena Pro_Midnight","8906133856397":"XO PRO_Dark Blue","8906133856380":"XO PRO_Space Grey","8906133856366":"XO_Black","8906133856373":"XO_Blue","8908012122081":"Xplode_Black","8908012122326":"Xplode_Black_2","8908012122333":"Xplode_Gold","8906133850586":"Xpods Pro_Black","8906133850593":"Xpods Pro_White","8906133850272":"Xpods_Black","8906133850289":"Xpods_BLUE","8906133850296":"Xpods_White","8906133859121":"Y1 ANC_Black","8906133859145":"Y1 ANC_Pink","8906133859138":"Y1 ANC_Teal","8906133853983":"Y1 Gaming_Black Metal","8906133854072":"Y1 Gaming_Electric Red","8906133854188":"Y1 Gaming_Glacier Blue","8906133853297":"Y1 Pro_Black","8906133853303":"Y1 Pro_Blue","8906133854317":"Y1 Pro_Candy Cane","8906133854041":"Y1 Pro_Jet Black","8906133854300":"Y1 Pro_Powder Blue","8906133853310":"Y1 Pro_Red","8906133858186":"Y1 v2.0_Black Onyx","8906133858193":"Y1 v2.0_Blue Teal","8906133858209":"Y1 v2.0_Electric Pink","8906133850456":"Y1_Black","8906133852467":"Y1_Green","8906133850463":"Y1_White","8906133851057":"YCharge_Black","8906133851064":"YCharge_Blue","8906133850050":"Z1_Black","8906133850067":"Z1_BLUE","8906133850487":"Z1_Green","8906133850470":"Z1_Grey","8906133850074":"Z1_White","8906133850845":"Z10_Grey","8906133850852":"Z10_Red","8906133850876":"Z15_Black","8906133850890":"Z15_Red","8906133850883":"Z15_White","8906133854010":"Z20 Gaming_Black Metal","8906133854089":"Z20 Gaming_Electric Red","8906133854034":"Z20 Gaming_Glacier Blue","8906133853341":"Z20 Pro_Black","8906133853358":"Z20 Pro_Blue","8906133854355":"Z20 Pro_Candy Cane","8906133855321":"Z20 Pro_Jet Black","8906133854348":"Z20 Pro_Powder Blue","8906133853365":"Z20 Pro_Red","8906133850807":"Z20_Black","8906133857431":"Z20_Forest Green","8906133850814":"Z20_Green","8906133856274":"Z20_Ivory White","8906133856250":"Z20_Jet Black","8906133856267":"Z20_Pine Green","8906133857424":"Z20_Pure Black","8906133857448":"Z20_Smoky White","8906133851026":"Z20_White","8906133851132":"Z25_Blue Moss","8906133851156":"Z25_Candy Cane","8906133851149":"Z25_Sunset Grey","8906133853679":"Z35_Blue Moss","8906133853860":"Z35_Candy Cane","8906133851101":"Z35_Graphite Black","8906133851125":"Z35_Pista Green","8906133851118":"Z35_Sunset Grey","8906133854232":"Z40 Gaming_Black Moss","8906133854065":"Z40 Gaming_Electric White","8906133858032":"Z40 Pro v2.0_Cloud Blue","8906133858025":"Z40 Pro v2.0_Indigo Rust","8906133858018":"Z40 Pro v2.0_Jungle Green","8906133853525":"Z40 Pro_Dawn","8906133853532":"Z40 Pro_Jungle","8906133853549":"Z40 Pro_Lavender","8906133854850":"Z40 Pro_Metal","8906133853518":"Z40 Pro_Midnight","8906133854119":"Z40 Ultra_Beige","8906133854096":"Z40 Ultra_Black","8906133856236":"Z40 Ultra_Cream","8906133856229":"Z40 Ultra_Jet Black","8906133854102":"Z40 Ultra_Metallic","8906133856243":"Z40 Ultra_Silver","8906133857691":"Z40 v2.0_Arctic Blue","8906133857684":"Z40 v2.0_Onyx Grey","8906133857677":"Z40 v2.0_Opal Black","8906133857660":"Z40 v2.0_Solar Orange","8906133854843":"Z40_Black","8906133851194":"Z40_BLUE","8906133851187":"Z40_Brown","8906133851200":"Z40_White","8906133852412":"Z60_Flamingo Pink","8906133852436":"Z60_Powder Blue","8906133852405":"Z60_Raven Black","8906133852429":"Z60_Spring Green","8906133851545":"ZCharge Pro_Black","8906133851552":"ZCharge Pro_Green","8906133850425":"ZCharge_Black","8906133850432":"ZCharge_BLUE","8906133850449":"ZCharge_Red","8908012122944":"Zigbuds_Grey","8908012122920":"Zigbuds_Red","8908012122937":"Zigbuds_White","8906133850524":"ZX1_Grey","8906133858285":"Zyano_Black","8906133858292":"Zyano_Green","8906133858308":"Zyano_White","8906133856403":"Zyde_Rover Rig"};
+
+  // Keep only the columns the tool actually uses — a Shopify export has ~80 columns,
+  // we read ~20. Projecting on parse cuts memory by 3-4x so large files don't crash the tab.
+  const USED_HEADERS = (()=>{ const s=new Set(Object.values(COL)); DEDUP_KEYS.forEach(k=>s.add(k)); return Array.from(s); })();
+  function slim(r){ const o={}; for(let i=0;i<USED_HEADERS.length;i++){ const h=USED_HEADERS[i]; const v=r[h]; if(v!=null && v!=="") o[h]=v; } return o; }
+
+  // ---- state ----
+  let files = [];
+  let orders = [];
+  let result = null;
+  let lastView = "summary";
+
+  // ---- file handling ----
+  const drop = $("#drop"), fileInput = $("#fileInput");
+  drop.addEventListener("click", ()=>fileInput.click());
+  $("#addMore").addEventListener("click", e=>{ e.stopPropagation(); fileInput.click(); });
+  $("#headerChoose").addEventListener("click", ()=>{ showUploadUI(true); fileInput.click(); });
+  ["dragenter","dragover"].forEach(e=>drop.addEventListener(e, ev=>{ev.preventDefault();drop.classList.add("drag");}));
+  ["dragleave","drop"].forEach(e=>drop.addEventListener(e, ev=>{ev.preventDefault();drop.classList.remove("drag");}));
+  drop.addEventListener("drop", ev=>{ if(ev.dataTransfer.files.length) handleFiles(ev.dataTransfer.files); });
+  fileInput.addEventListener("change", ()=>{ if(fileInput.files.length) handleFiles(fileInput.files); fileInput.value=""; });
+
+  function showUploadUI(show){
+    $("#uploadUI").hidden = !show;
+    $("#headerChoose").hidden = show;
+  }
+
+  function handleFiles(fileList){
+    showUploadUI(true);
+    const arr = Array.from(fileList);
+    let pending = arr.length;
+    setBusy(`Reading ${arr.length} file${arr.length>1?"s":""}…`);
+    arr.forEach(file=>{
+      const ext = file.name.split(".").pop().toLowerCase();
+      const reader = new FileReader();
+      const done = rows => { files.push({name:file.name, rows}); if(--pending===0) afterLoad(); };
+      reader.onload = e=>{
+        try{
+          if(ext==="csv" || ext==="txt"){
+            // Stream in chunks and keep ONLY the columns we use, so the full
+            // ~80-column copy is never held in memory (prevents OOM on big files).
+            const rows=[];
+            Papa.parse(e.target.result, {
+              header:true, skipEmptyLines:true, dynamicTyping:false, chunkSize:1024*1024,
+              chunk:res=>{ const d=res.data; for(let i=0;i<d.length;i++) rows.push(slim(d[i])); },
+              complete:()=>done(rows),
+              error:err=>{ setStatus("Could not read "+file.name+": "+err.message, true); done(rows); }
+            });
+          } else {
+            const wb = XLSX.read(e.target.result, {type:"binary"});
+            const arr = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:""});
+            const rows=new Array(arr.length);
+            for(let i=0;i<arr.length;i++) rows[i]=slim(arr[i]);
+            arr.length=0;
+            done(rows);
+          }
+        }catch(err){ setStatus("Could not read "+file.name+": "+err.message, true); if(--pending===0) afterLoad(); }
+      };
+      reader.onerror = ()=>{ if(--pending===0) afterLoad(); };
+      if(ext==="csv"||ext==="txt") reader.readAsText(file); else reader.readAsBinaryString(file);
+    });
+  }
+
+  function countUnique(){
+    const seen=new Set(); let total=0;
+    files.forEach(f=>f.rows.forEach(r=>{
+      total++;
+      let sig=""; for(let i=0;i<DEDUP_KEYS.length;i++){ const v=r[DEDUP_KEYS[i]]; sig += (v==null?"":v)+"\u0001"; }
+      seen.add(sig);
+    }));
+    return { total, unique: seen.size, dupes: total-seen.size };
+  }
+
+  function afterLoad(){
+    renderFileChips();
+    $("#runbar").hidden = files.length===0;
+    const ok = $("#okBanner");
+    if(files.length){
+      setBusy("Combining files & removing duplicates…");
+      requestAnimationFrame(()=>setTimeout(()=>{
+        const c = countUnique();
+        $("#dropTitle").textContent = "Add more files, or click Create dashboard";
+        ok.hidden=false;
+        ok.innerHTML = `<span style="font-size:1rem;">✓</span><span>Uploaded successfully — <span class="big">${c.unique.toLocaleString()}</span> unique rows combined from ${files.length} file${files.length>1?"s":""} (${c.total.toLocaleString()} total${c.dupes?`, ${c.dupes.toLocaleString()} duplicates removed`:""}). Click <b>Create dashboard</b>.</span>`;
+        clearBusy();
+      }, 20));
+    } else {
+      clearBusy();
+      $("#dropTitle").textContent = "Drop Shopify export files here"; ok.hidden=true;
+    }
+    setStatus("");
+  }
+
+  function setBusy(msg){
+    let o=$("#busyOverlay");
+    if(!o){ o=document.createElement("div"); o.id="busyOverlay"; o.className="busy";
+      o.innerHTML=`<div class="busy-box"><div class="spinner"></div><span id="busyMsg"></span></div>`;
+      document.body.appendChild(o); }
+    $("#busyMsg").textContent=msg; o.hidden=false;
+  }
+  function clearBusy(){ const o=$("#busyOverlay"); if(o) o.hidden=true; }
+
+  function renderFileChips(){
+    $("#filelist").innerHTML = files.map((f,i)=>
+      `<span class="filechip"><b>${esc(f.name)}</b> ${f.rows.length.toLocaleString()} <button data-i="${i}" title="remove">×</button></span>`
+    ).join("");
+    $$("#filelist button").forEach(b=>b.addEventListener("click",ev=>{
+      ev.stopPropagation(); files.splice(+b.dataset.i,1); afterLoad();
+      if(files.length===0){ $("#results").hidden=true; }
+    }));
+  }
+
+  // ---- helpers ----
+  function kwList(id){ return $(id).value.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean); }
+  function low(s){ return String(s==null?"":s).toLowerCase(); }
+  function cell(r,key){ const h=COL[key]; return h && r[h]!=null ? String(r[h]) : ""; }
+  function parseAmount(s){ if(s==null) return 0; const n=parseFloat(String(s).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:n; }
+  function parseDate(s){ if(!s) return null; const d=new Date(s); return isNaN(d)?null:d; }
+  function fmtDate(s){ const d=parseDate(s); if(!d) return esc(s)||""; return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}); }
+  function looksLikeName(sku){
+    const s=String(sku||"").trim();
+    if(!s) return false;
+    if(/\s/.test(s) && (s.match(/[a-z]/gi)||[]).length>=4) return true;
+    return false;
+  }
+
+  // ---- build orders ----
+  function buildOrders(){
+    const seen = new Set();
+    const grouped = new Map();
+    let totalRows=0, dupRows=0;
+    files.forEach(f=>{
+      f.rows.forEach(r=>{
+        totalRows++;
+        let sig=""; for(let i=0;i<DEDUP_KEYS.length;i++){ const v=r[DEDUP_KEYS[i]]; sig += (v==null?"":v) + "\u0001"; }
+        if(seen.has(sig)){ dupRows++; return; }
+        seen.add(sig);
+        const name = cell(r,"order").trim() || ("__row"+totalRows);
+        if(!grouped.has(name)) grouped.set(name, {name, rows:[]});
+        grouped.get(name).rows.push(r);
+      });
+    });
+    const firstNonEmpty = (rows,...keys)=>{ for(const r of rows){ for(const k of keys){ const v=cell(r,k).trim(); if(v) return v; } } return ""; };
+    const out = [];
+    grouped.forEach(g=>{
+      const rows = g.rows;
+      const o = {
+        name: g.name,
+        email: firstNonEmpty(rows,"customer"),
+        custname: firstNonEmpty(rows,"custname","shipname"),
+        phone: firstNonEmpty(rows,"phone","billphone","shipphone"),
+        date: firstNonEmpty(rows,"date","paid"),
+        total: parseAmount(firstNonEmpty(rows,"total")),
+        coupon: firstNonEmpty(rows,"coupon"),
+        payment: firstNonEmpty(rows,"payment"),
+        finstatus: firstNonEmpty(rows,"finstatus"),
+        items: rows.map(r=>({ sku:cell(r,"sku"), name:cell(r,"product"), price:parseAmount(cell(r,"liprice")), qty:cell(r,"qty") }))
+                   .filter(it=>it.sku||it.name)
+      };
+      o.ctx = [firstNonEmpty(rows,"notes"), firstNonEmpty(rows,"noteattr"), o.payment, firstNonEmpty(rows,"payref"), firstNonEmpty(rows,"tags"), firstNonEmpty(rows,"source")].join(" ").toLowerCase();
+      o.tags = firstNonEmpty(rows,"tags");
+      o.cleanProd = canonProd(o.items[0]);
+      out.push(o);
+    });
+    return { orders: out, totalRows, dupRows, uniqueRows: totalRows-dupRows };
+  }
+
+  // ---- analysis ----
+  $("#runBtn").addEventListener("click", ()=>{
+    if(!files.length){ setStatus("Add at least one file first.", true); return; }
+    const totalRows = files.reduce((n,f)=>n+f.rows.length,0);
+    setBusy(`Building dashboard — crunching ${totalRows.toLocaleString()} rows…`);
+    $("#runBtn").disabled = true;
+    requestAnimationFrame(()=>setTimeout(()=>{
+      try{ run(); } finally { clearBusy(); $("#runBtn").disabled=false; }
+    }, 20));
+  });
+
+  const normProd = s => low(s)
+    .replace(/pre-?book|prebook|priority access|priority|early access|pre-?order|preorder/g,"")
+    .replace(/[^a-z0-9]+/g," ").trim();
+
+  // Canonical product name for an item: resolve a numeric EAN via the master catalog,
+  // otherwise clean the line-item name (strips Pre-Book/Priority keywords).
+  function canonProd(item){
+    if(!item) return "";
+    const sku=String(item.sku||"").trim();
+    if(sku && EAN_MAP[sku]) return EAN_MAP[sku];
+    return cleanName(item.name||sku);
+  }
+  // Normalized product key for matching — makes a pre-book (name in SKU) and its
+  // converted order (numeric EAN) resolve to the same product.
+  function prodKey(item){
+    if(!item) return "";
+    const sku=String(item.sku||"").trim();
+    if(sku && EAN_MAP[sku]) return normProd(EAN_MAP[sku]);
+    return normProd(item.name)||normProd(sku);
+  }
+  // Variant/noise words that differ between a pre-book line and its full-price
+  // conversion of the SAME product (e.g. "Prebook Pass" vs "fp"), plus generic
+  // filler. Stripping these leaves the model + colour tokens that identify a product.
+  const MATCH_STOP = new Set(["pass","fp","fullprice","fully","loaded","full","price",
+    "official","collab","edition","deposit","token","advance","balance","bal","booking",
+    "the","for","with","and","pb","prebook","prebooking","reserve","reservation","buy","now",
+    "offer","deal","final","order","product","collection","new","launch","mustang"]);
+  const STOP_NUMISH = t => /^\d+$/.test(t) || /^\d+k$/.test(t) || /^\d+[a-z]{0,2}\d*$/.test(t); // 3k, pb999, bal2000, 120254…
+  // Significant tokens from any string (model + colour words).
+  function tokSet(str){ const s=new Set(); normProd(str).split(" ").forEach(t=>{ if(t.length>1 && !MATCH_STOP.has(t) && !STOP_NUMISH(t)) s.add(t); }); return s; }
+  // A SKU that is a slug/handle ("nerve-classic-dune") rather than a numeric EAN —
+  // a strong pre-book signal, and useful product tokens.
+  function isHandle(sku){ const s=String(sku||"").trim(); return /[a-z]/i.test(s) && /[-\s]/.test(s) && !/^\d/.test(s) && !EAN_MAP[s]; }
+  // Product token set for an order (names + colour, resolving EANs via catalog, plus slug SKUs).
+  function prodTokens(o){ const s=new Set(); o.items.forEach(i=>{ const base=(i.sku&&EAN_MAP[i.sku])?EAN_MAP[i.sku]:(i.name||""); tokSet(base).forEach(t=>s.add(t)); if(isHandle(i.sku)) tokSet(i.sku).forEach(t=>s.add(t)); }); return s; }
+  // Haystack = product tokens + coupon-code tokens (coupons often encode the product).
+  function hayTokens(o){ const s=new Set(o._ptok||prodTokens(o)); tokSet(o.coupon).forEach(t=>s.add(t)); return s; }
+  // Two orders share a product when one's product tokens are contained in the other's
+  // haystack (tolerates extra words on either side; uses the coupon code too).
+  function shareProduct(a,b){
+    const sub=(small,hay)=> small.size>=2 && Array.from(small).every(t=>hay.has(t));
+    return sub(a._ptok,b._htok) || sub(b._ptok,a._htok);
+  }
+
+  function run(){
+    try{
+      const prebookKw = kwList("#kwPrebook"), d2cKw = kwList("#kwD2C"), exclKw = kwList("#kwExclude");
+      const built = buildOrders();
+      orders = built.orders;
+
+      // Match markers as WHOLE words so "cred" (the Cred app) doesn't match inside
+      // "credit card", and "cod" doesn't match inside "code", etc.
+      const reFor = k => new RegExp("(^|[^a-z0-9])"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"([^a-z0-9]|$)","i");
+      const d2cRe = d2cKw.map(reFor), exclRe = exclKw.map(reFor);
+      const d2c=[], dropped=[];
+      orders.forEach(o=>{
+        const hasD2C = d2cRe.some(re=>re.test(o.ctx));
+        let exKw=""; if(!hasD2C){ for(let i=0;i<exclRe.length;i++){ if(exclRe[i].test(o.ctx)){ exKw=exclKw[i]; break; } } }
+        const keep = hasD2C || !exKw;
+        o.excludedReason = keep ? "" : exKw;
+        (keep?d2c:dropped).push(o);
+      });
+
+      // Pre-Book is identified by the SKU / line item (a Pre-Book keyword in the line item /
+      // SKU / tags, OR a SKU that is a product NAME or a slug/handle rather than a numeric EAN).
+      // The Discount Code is NOT scanned here — a converted real order often carries a
+      // "prebook pass" coupon on a proper numeric SKU, and that is a conversion, not a pre-book.
+      const isPrebookOrder = o => {
+        if(o.items.some(i=>looksLikeName(i.sku) || isHandle(i.sku))) return "sku-is-name";
+        const hay = [o.tags, ...o.items.map(i=>i.name+" "+i.sku)].join(" ").toLowerCase();
+        if(prebookKw.some(k=>k && hay.includes(k))) return "keyword";
+        return "";
+      };
+      // Precompute product / haystack token sets once per D2C order (used for matching).
+      d2c.forEach(o=>{ o._ptok=prodTokens(o); o._htok=hayTokens(o); o._isPB=!!isPrebookOrder(o); o._dt=parseDate(o.date); });
+
+      const prebook=[];
+      d2c.forEach(o=>{ if(o._isPB){ o.why=isPrebookOrder(o);
+        o.dispItem = o.items.find(i=> prebookKw.some(k=>k&&(i.name+" "+i.sku).toLowerCase().includes(k))) || o.items.find(i=>looksLikeName(i.sku)||isHandle(i.sku)) || o.items[0] || {sku:"",name:""};
+        o.cleanProd = canonProd(o.dispItem);
+        prebook.push(o); } });
+
+      const byCust = new Map();
+      d2c.forEach(c=>{ const key=low(c.email); if(!key) return; if(!byCust.has(key)) byCust.set(key,[]); byCust.get(key).push(c); });
+
+      prebook.forEach(pb=>{
+        const cust = low(pb.email);
+        const pbDate = pb._dt;
+        const pbCoupon = low(pb.coupon);
+        let match=null, strong=false;
+        const cands = cust ? (byCust.get(cust)||[]) : [];
+        for(const c of cands){
+          if(c===pb || c.name===pb.name) continue;
+          const cCoupon = low(c.coupon);
+          const share = shareProduct(pb,c);
+          // coupon signals: same coupon on both, or the conversion's coupon references a pre-book,
+          // or the conversion's coupon encodes one of the pre-book's product tokens.
+          const sameCoupon = pbCoupon && cCoupon && pbCoupon===cCoupon;
+          const couponRefsPrebook = cCoupon && !c._isPB && prebookKw.some(k=>k && cCoupon.includes(k));
+          // coupon encodes the product only if it shares >=2 of the pre-book's product
+          // tokens (model + colour) — one shared word (e.g. the model) is not enough.
+          const couponShared = cCoupon ? Array.from(tokSet(c.coupon)).filter(t=>pb._ptok.has(t)).length : 0;
+          const couponEncodes = couponShared>=2;
+          const later = !c._isPB && (!pbDate || !c._dt || c._dt>=pbDate);
+          if(sameCoupon || couponRefsPrebook){ match=c; strong=true; break; }
+          if(later && (share || couponEncodes)){
+            if(!match || couponEncodes){ match=c; strong = strong || couponEncodes; }
+            if(couponEncodes){ break; }
+          }
+        }
+        pb.match = match; pb.matchStrong = strong;
+      });
+
+      const converted = prebook.filter(p=>p.match);
+      const pending = prebook.filter(p=>!p.match);
+      const prebookRev = prebook.reduce((s,o)=>s+o.total,0);
+      const convRev = converted.reduce((s,o)=>s+(o.match?o.match.total:0),0);
+      const pendRev = pending.reduce((s,o)=>s+o.total,0);
+      const convPct = prebook.length ? converted.length/prebook.length*100 : 0;
+
+      result = { prebook, converted, pending, dropped, d2c,
+        stats:{ totalRows:built.totalRows, uniqueRows:built.uniqueRows, dupRows:built.dupRows,
+                totalOrders:orders.length, d2c:d2c.length, dropped:dropped.length,
+                prebook:prebook.length, converted:converted.length, open:pending.length,
+                prebookRev, convRev, pendRev, convPct } };
+
+      renderResults();
+      setStatus(`Done — ${orders.length.toLocaleString()} orders, ${built.dupRows.toLocaleString()} duplicate rows removed.`);
+    }catch(err){ setStatus("Error: "+err.message, true); console.error(err); }
+  }
+
+  // ---- render ----
+  function money(n){ return "₹"+Math.round(n).toLocaleString("en-IN"); }
+  function moneyShort(n){
+    n=Math.round(n); const a=Math.abs(n);
+    if(a>=1e7) return "₹"+(n/1e7).toFixed(2).replace(/\.?0+$/,"")+" Cr";
+    if(a>=1e5) return "₹"+(n/1e5).toFixed(2).replace(/\.?0+$/,"")+" L";
+    if(a>=1e3) return "₹"+(n/1e3).toFixed(1).replace(/\.0$/,"")+"K";
+    return "₹"+n.toLocaleString("en-IN");
+  }
+  function cleanName(raw){
+    let s=String(raw||"");
+    s=s.replace(/pre-?book|prebook|pre book|priority access|priority|early access|pre-?order|preorder|\bbook\b/gi," ");
+    s=s.replace(/[-–|•]+/g," ").replace(/\s{2,}/g," ").trim();
+    return s.replace(/^[\s\-–|,]+|[\s\-–|,]+$/g,"").trim() || "(unnamed)";
+  }
+
+  function renderResults(){
+    const s=result.stats;
+    showUploadUI(false);
+    $("#results").hidden=false;
+    $("#convPct").textContent = s.convPct.toFixed(1)+"%";
+    $("#barFill").style.width = Math.min(100,s.convPct)+"%";
+    $("#ctP").textContent=s.prebook; $("#ctC").textContent=s.converted; $("#ctPend").textContent=s.open; $("#ctD").textContent=s.dropped;
+    refreshView(lastView);
+  }
+
+  function showView(view){
+    const isSum = view==="summary";
+    $("#tablebar").hidden=false;        // filters show on every tab, summary included
+    $("#exportBtn").hidden=isSum;        // CSV copy only on the detail tables
+    $("#tblScroll").hidden=isSum; $("#summaryWrap").hidden=!isSum;
+  }
+  function refreshView(view){
+    renderCards(view);
+    showView(view);
+    populateProdFilter(view);
+    if(view==="summary"){ renderSummary(); }
+    else { renderTable(view); }
+  }
+  function applyAndRender(){ renderCards(lastView); if(lastView==="summary") renderSummary(); else renderTable(lastView); }
+  function dayKey(s){ const d=parseDate(s); if(!d) return ""; return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function dayLabel(k){ if(!k) return "—"; const d=new Date(k+"T00:00:00"); return isNaN(d)?k:d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"2-digit"}); }
+
+  function card(cls,lab,val,sub,valCls){ return `<div class="card ${cls}"><div class="lab">${lab}</div><div class="val ${valCls||''}">${val}</div><div class="sub">${sub}</div></div>`; }
+
+  function filteredStats(){
+    const pb=applyFilters(result.prebook);
+    const conv=pb.filter(o=>o.match), pend=pb.filter(o=>!o.match);
+    return {
+      prebook:pb.length, converted:conv.length, open:pend.length,
+      d2c:applyFilters(result.d2c).length, dropped:applyFilters(result.dropped).length,
+      prebookRev:pb.reduce((s,o)=>s+o.total,0),
+      convRev:conv.reduce((s,o)=>s+(o.match?o.match.total:0),0),
+      pendRev:pend.reduce((s,o)=>s+o.total,0),
+      convPct:pb.length?conv.length/pb.length*100:0,
+      uniqueRows:result.stats.uniqueRows, dupRows:result.stats.dupRows
+    };
+  }
+
+  function updateHeadline(s){
+    $("#convPct").textContent = s.convPct.toFixed(1)+"%";
+    $("#barFill").style.width = Math.min(100,s.convPct)+"%";
+  }
+
+  function renderCards(view){
+    const s=filteredStats();
+    updateHeadline(s);
+    const C = {
+      prebook: card("accent","Pre-Book orders",s.prebook.toLocaleString(),`of ${s.d2c.toLocaleString()} D2C`)
+             + card("good","Converted",s.converted.toLocaleString(),`${s.convPct.toFixed(1)}% of pre-book`,"g")
+             + card("","Converted %",s.convPct.toFixed(1)+"%","conversion rate")
+             + card("","Pre-Book revenue",moneyShort(s.prebookRev),"booked value")
+             + card("","Total D2C orders",s.d2c.toLocaleString(),`${s.uniqueRows.toLocaleString()} unique rows`),
+      converted: card("accent","Pre-Book orders",s.prebook.toLocaleString(),`of ${s.d2c.toLocaleString()} D2C`)
+               + card("good","Converted",s.converted.toLocaleString(),`${moneyShort(s.convRev)} realized`,"g")
+               + card("","Converted %",s.convPct.toFixed(1)+"%","conversion rate")
+               + card("warn","Pending",s.open.toLocaleString(),"not yet converted")
+               + card("","Pending revenue",moneyShort(s.pendRev),"at risk"),
+      pending: card("warn","Pending",s.open.toLocaleString(),"not yet converted")
+             + card("","Pending revenue",moneyShort(s.pendRev),"at risk")
+             + card("accent","Pre-Book orders",s.prebook.toLocaleString(),`of ${s.d2c.toLocaleString()} D2C`)
+             + card("good","Converted",s.converted.toLocaleString(),`${s.convPct.toFixed(1)}%`,"g")
+             + card("","Converted %",s.convPct.toFixed(1)+"%","conversion rate"),
+      dropped: card("","Excluded orders",s.dropped.toLocaleString(),"non-D2C")
+             + card("","Duplicate rows",s.dupRows.toLocaleString(),`across ${files.length} file${files.length>1?"s":""}`)
+             + card("accent","Pre-Book orders",s.prebook.toLocaleString(),`of ${s.d2c.toLocaleString()} D2C`)
+             + card("good","Converted",s.converted.toLocaleString(),`${s.convPct.toFixed(1)}%`,"g")
+             + card("","Total D2C orders",s.d2c.toLocaleString(),`${s.uniqueRows.toLocaleString()} unique rows`)
+    };
+    $("#cards").innerHTML = C[view] || C.prebook;
+  }
+
+  // ---- searchable multi-select for Product ----
+  let selProds = new Set();   // selected product names
+  let prodOpts = [];          // [{name,count}] for the current view
+
+  function populateProdFilter(view){
+    const rows = rowsFor(view);
+    const set = new Map();
+    rows.forEach(o=>{ const k=o.cleanProd||"(unnamed)"; set.set(k,(set.get(k)||0)+1); });
+    prodOpts = Array.from(set.entries()).map(([name,count])=>({name,count})).sort((a,b)=>a.name.localeCompare(b.name));
+    // drop any selected products not present in this view
+    const names=new Set(prodOpts.map(o=>o.name));
+    selProds.forEach(p=>{ if(!names.has(p)) selProds.delete(p); });
+    msRenderChips(); msRenderMenu();
+  }
+
+  function msRenderChips(){
+    const chips=$("#msChips");
+    chips.innerHTML = Array.from(selProds).map(p=>`<span class="ms-chip"><span>${esc(p)}</span><button data-p="${esc(p)}" title="remove" type="button">×</button></span>`).join("");
+    $("#msInput").placeholder = selProds.size ? "" : "All products";
+    chips.querySelectorAll("button").forEach(b=>b.addEventListener("click",ev=>{
+      ev.stopPropagation(); selProds.delete(b.dataset.p); msRenderChips(); msRenderMenu(); applyAndRender();
+    }));
+  }
+
+  function msRenderMenu(){
+    const menu=$("#msMenu");
+    if(menu.hidden) return;
+    const q=low($("#msInput").value);
+    const list=prodOpts.filter(o=>!q||o.name.toLowerCase().includes(q));
+    const head=`<div class="ms-head"><span>${list.length.toLocaleString()} product${list.length!==1?"s":""}${selProds.size?` · ${selProds.size} selected`:""}</span>${selProds.size?`<button type="button" id="msClearSel">Clear selection</button>`:""}</div>`;
+    const body = list.length
+      ? list.slice(0,500).map(o=>{ const on=selProds.has(o.name);
+          return `<div class="ms-opt ${on?'sel':''}" data-p="${esc(o.name)}"><span class="box">${on?'✓':''}</span><span>${esc(o.name)}</span><span class="cnt">${o.count}</span></div>`; }).join("")
+      : `<div class="ms-empty">No products match “${esc($("#msInput").value)}”</div>`;
+    menu.innerHTML = head + body + (list.length>500?`<div class="ms-empty">Showing first 500 — keep typing to narrow</div>`:"");
+    const cs=$("#msClearSel"); if(cs) cs.addEventListener("click",ev=>{ ev.stopPropagation(); selProds.clear(); msRenderChips(); msRenderMenu(); applyAndRender(); });
+    menu.querySelectorAll(".ms-opt").forEach(el=>el.addEventListener("click",ev=>{
+      ev.stopPropagation(); const p=el.dataset.p;
+      if(selProds.has(p)) selProds.delete(p); else selProds.add(p);
+      msRenderChips(); msRenderMenu(); applyAndRender();
+    }));
+  }
+
+  function msOpen(){ if($("#msMenu").hidden){ $("#msMenu").hidden=false; msRenderMenu(); } }
+  function msClose(){ $("#msMenu").hidden=true; }
+
+  $("#msControl").addEventListener("click", ()=>{ $("#msInput").focus(); msOpen(); });
+  $("#msInput").addEventListener("focus", msOpen);
+  $("#msInput").addEventListener("input", ()=>{ msOpen(); msRenderMenu(); });
+  $("#msInput").addEventListener("keydown", ev=>{
+    if(ev.key==="Enter"){ const q=low($("#msInput").value); const list=prodOpts.filter(o=>!q||o.name.toLowerCase().includes(q));
+      if(list.length){ const p=list[0].name; if(selProds.has(p)) selProds.delete(p); else selProds.add(p); $("#msInput").value=""; msRenderChips(); msRenderMenu(); applyAndRender(); } ev.preventDefault(); }
+    else if(ev.key==="Backspace" && !$("#msInput").value && selProds.size){ const last=Array.from(selProds).pop(); selProds.delete(last); msRenderChips(); msRenderMenu(); applyAndRender(); }
+    else if(ev.key==="Escape"){ msClose(); }
+  });
+  document.addEventListener("click", ev=>{ if(!$("#prodFilter").contains(ev.target)) msClose(); });
+
+  function rowsFor(view){
+    if(!result) return [];
+    if(view==="summary") return result.prebook;
+    if(view==="prebook") return result.prebook;
+    if(view==="converted") return result.converted;
+    if(view==="pending") return result.pending;
+    return result.dropped;
+  }
+
+  $$("#tabs .tab").forEach(t=>t.addEventListener("click",()=>{
+    $$("#tabs .tab").forEach(x=>x.classList.remove("on")); t.classList.add("on");
+    lastView=t.dataset.view;
+    $("#search").value=""; $("#dateFrom").value=""; $("#dateTo").value="";
+    refreshView(lastView);
+  }));
+  ["#search","#dateFrom","#dateTo"].forEach(id=>{
+    const el=$(id); el.addEventListener(id.startsWith("#date")?"change":"input", applyAndRender);
+  });
+  $("#clearFilters").addEventListener("click", ()=>{
+    $("#search").value=""; $("#dateFrom").value=""; $("#dateTo").value="";
+    selProds.clear(); $("#msInput").value=""; msRenderChips(); msRenderMenu();
+    applyAndRender();
+  });
+
+  function currentRows(){ return rowsFor(lastView); }
+
+  function applyFilters(rows){
+    const q=low($("#search").value);
+    const dfv=$("#dateFrom").value, dtv=$("#dateTo").value;
+    const df=dfv?new Date(dfv+"T00:00:00"):null;
+    const dt=dtv?new Date(dtv+"T23:59:59"):null;
+    const useProd=selProds.size>0;
+    return rows.filter(o=>{
+      if(q){ const hay=[o.name,o.email,o.custname,o.phone,o.coupon,o.ctx,o.cleanProd,...o.items.map(i=>i.sku+" "+i.name)].join(" ").toLowerCase(); if(!hay.includes(q)) return false; }
+      if(useProd && !selProds.has(o.cleanProd||"(unnamed)")) return false;
+      if(df||dt){ const d=parseDate(o.date); if(!d) return false; if(df&&d<df) return false; if(dt&&d>dt) return false; }
+      return true;
+    });
+  }
+
+  function custCell(o,extra){
+    const name = o.custname ? `<span class="nm">${esc(o.custname)}</span>` : `<span class="nm muted">—</span>`;
+    const email = o.email ? `<span class="sm">${esc(o.email)}</span>` : "";
+    const phone = o.phone ? `<span class="sm">${esc(o.phone)}</span>` : "";
+    return `<td class="cust ${extra||''}">${name}${email?"<br>"+email:""}${phone?"<br>"+phone:""}</td>`;
+  }
+  function flagTag(o){ return o.why==='sku-is-name' ? `<span class="tag sku-name">SKU name</span>` : `<span class="tag kw">keyword</span>`; }
+  function skuCell(o){ const di=o.dispItem||{sku:"",name:""}; return o.why==='sku-is-name' ? `<span class="tag sku-name">${esc(di.sku||di.name||'name')}</span>` : (`<span class="mono">${esc(di.sku)}</span>`||"<span class=muted>—</span>"); }
+  function prodCell(o){ const di=o.dispItem||{name:""}; const nm=o.cleanProd||di.name||canonProd(di); const extra=o.items.length>1?` <span class="muted">+${o.items.length-1}</span>`:""; return `${esc(nm)||"<span class=muted>—</span>"}${extra}`; }
+
+  function renderSummary(){
+    const pb=applyFilters(result.prebook), conv=pb.filter(o=>o.match);
+
+    // 1. Date Level Summary
+    const byDate=new Map();
+    pb.forEach(o=>{ const k=dayKey(o.date)||"(no date)"; let e=byDate.get(k); if(!e){e={pb:0,pbRev:0,cv:0,cvRev:0};byDate.set(k,e);} e.pb++; e.pbRev+=o.total; if(o.match){e.cv++;e.cvRev+=o.match.total;} });
+    const dateRows=[...byDate.entries()].sort((a,b)=>a[0]<b[0]?-1:1);
+    let a1=0,a1r=0,a1c=0,a1cr=0;
+    const dateBody=dateRows.map(([k,e])=>{ a1+=e.pb;a1r+=e.pbRev;a1c+=e.cv;a1cr+=e.cvRev; const pct=e.pb?e.cv/e.pb*100:0;
+      return `<tr><td>${dayLabel(k)}</td><td class="num">${e.pb}</td><td class="num">${money(e.pbRev)}</td><td class="num">${e.cv}</td><td class="num">${money(e.cvRev)}</td><td class="num">${pct.toFixed(1)}%</td></tr>`; }).join("");
+    const table1=`<div class="tbl-scroll"><table>
+      <thead><tr><th>Pre-Book date</th><th class="num">Pre-Books</th><th class="num">Pre-Book revenue</th><th class="num">Converted</th><th class="num">Converted revenue</th><th class="num">Conv %</th></tr></thead>
+      <tbody>${dateBody}</tbody>
+      <tfoot><tr><td>Total</td><td class="num">${a1}</td><td class="num">${money(a1r)}</td><td class="num">${a1c}</td><td class="num">${money(a1cr)}</td><td class="num">${a1?(a1c/a1*100).toFixed(1):0}%</td></tr></tfoot></table></div>`;
+
+    // 2. Day-on-Day Conversion matrix
+    const convDates=[...new Set(conv.map(o=>dayKey(o.match.date)||"(no date)"))].sort((a,b)=>a<b?-1:1);
+    const matrix=new Map();
+    pb.forEach(o=>{ const bk=dayKey(o.date)||"(no date)"; let m=matrix.get(bk); if(!m){m={total:0,pending:0,cells:{}};matrix.set(bk,m);} m.total++; if(o.match){const ck=dayKey(o.match.date)||"(no date)"; m.cells[ck]=(m.cells[ck]||0)+1;} else m.pending++; });
+    const bookDates=[...matrix.keys()].sort((a,b)=>a<b?-1:1);
+    const headCols=convDates.map(c=>`<th class="num">${dayLabel(c)}</th>`).join("");
+    const colTotals={}; let gT=0,gP=0;
+    const matBody=bookDates.map(bk=>{ const m=matrix.get(bk); gT+=m.total; gP+=m.pending;
+      const cells=convDates.map(c=>{ const v=m.cells[c]||0; if(v) colTotals[c]=(colTotals[c]||0)+v; return `<td class="num ${c===bk?'diag':''}">${v||'<span class=muted>·</span>'}</td>`; }).join("");
+      return `<tr><td>${dayLabel(bk)}</td><td class="num"><b>${m.total}</b></td>${cells}<td class="num">${m.pending||'<span class=muted>·</span>'}</td></tr>`; }).join("");
+    const footCols=convDates.map(c=>`<td class="num">${colTotals[c]||0}</td>`).join("");
+    const table2 = convDates.length ? `<div class="tbl-scroll"><table>
+      <thead><tr><th>Pre-Book date ↓ / Converted on →</th><th class="num">Total pre-books</th>${headCols}<th class="num">Pending</th></tr></thead>
+      <tbody>${matBody}</tbody>
+      <tfoot><tr><td>Total</td><td class="num">${gT}</td>${footCols}<td class="num">${gP}</td></tr></tfoot></table></div>`
+      : `<div class="empty-state">No conversions yet to build the day-on-day matrix.</div>`;
+
+    // 3. Product Level Summary
+    const byProd=new Map();
+    pb.forEach(o=>{ const k=o.cleanProd||"(unnamed)"; let e=byProd.get(k); if(!e){e={pb:0,pbRev:0,cv:0,cvRev:0};byProd.set(k,e);} e.pb++; e.pbRev+=o.total; if(o.match){e.cv++;e.cvRev+=o.match.total;} });
+    const prodRows=[...byProd.entries()].sort((a,b)=>b[1].pb-a[1].pb);
+    let a3=0,a3r=0,a3c=0,a3cr=0;
+    const prodBody=prodRows.map(([k,e])=>{ a3+=e.pb;a3r+=e.pbRev;a3c+=e.cv;a3cr+=e.cvRev; const pct=e.pb?e.cv/e.pb*100:0;
+      return `<tr><td class="prod">${esc(k)}</td><td class="num">${e.pb}</td><td class="num">${money(e.pbRev)}</td><td class="num">${e.cv}</td><td class="num">${money(e.cvRev)}</td><td class="num">${pct.toFixed(1)}%</td></tr>`; }).join("");
+    const table3=`<div class="tbl-scroll"><table>
+      <thead><tr><th>Product</th><th class="num">Pre-Books</th><th class="num">Pre-Book revenue</th><th class="num">Converted</th><th class="num">Converted revenue</th><th class="num">Conv %</th></tr></thead>
+      <tbody>${prodBody}</tbody>
+      <tfoot><tr><td>Total</td><td class="num">${a3}</td><td class="num">${money(a3r)}</td><td class="num">${a3c}</td><td class="num">${money(a3cr)}</td><td class="num">${a3?(a3c/a3*100).toFixed(1):0}%</td></tr></tfoot></table></div>`;
+
+    const cbtn=`<button class="btn-ghost sum-copy" type="button">⧉ Copy</button>`;
+    $("#summaryWrap").innerHTML =
+      `<div class="summary-block"><h3>Date Level Summary <span class="n">${dateRows.length}</span>${cbtn}</h3><p class="desc">Pre-Book orders booked on each date, with how many have converted and the revenue on each side.</p>${table1}</div>`+
+      `<div class="summary-block"><h3>Day-on-Day Conversion ${cbtn}</h3><p class="desc">Each row is a pre-book date; columns are the dates those pre-books later converted on. Same-day cells are highlighted; Pending = not yet converted.</p>${table2}</div>`+
+      `<div class="summary-block"><h3>Product Level Summary <span class="n">${prodRows.length}</span>${cbtn}</h3><p class="desc">Pre-Book orders per product (Pre-Book / Priority keywords stripped), with converted count and revenue on each side.</p>${table3}</div>`;
+
+    $$("#summaryWrap .summary-block").forEach(blk=>{ const b=blk.querySelector(".sum-copy"), t=blk.querySelector("table"); if(b&&t) b.addEventListener("click",()=>copyDomTable(t,b)); else if(b) b.disabled=true; });
+  }
+
+  const itemsSummary = o => { const names=o.items.map(i=>i.name||i.sku).filter(Boolean); return names.slice(0,2).join(", ")+(names.length>2?` +${names.length-2}`:""); };
+  const skuText = o => { const di=o.dispItem||{sku:"",name:""}; return o.why==='sku-is-name' ? (di.sku||di.name||"name") : di.sku; };
+  const prodText = o => { const di=o.dispItem||{name:""}; return o.cleanProd||di.name||canonProd(di); };
+
+  // Shared column model — the ON-SCREEN table and the COPY both build from this,
+  // so copied output matches the displayed columns & formatting exactly.
+  function columnsFor(view){
+    const cust = (get,hl)=>[
+      {h:"Customer name", cls:(hl?"hl ":"")+"nm", text:o=>get(o).custname||""},
+      {h:"Email",  cls:hl?"hl":"", text:o=>get(o).email||""},
+      {h:"Phone",  cls:hl?"hl":"", mono:true, text:o=>get(o).phone||""},
+    ];
+    if(view==="dropped") return [
+      {h:"Order ID",cls:"mono",text:o=>o.name},
+      {h:"Created",text:o=>fmtDate(o.date)},
+      ...cust(o=>o),
+      {h:"Items",cls:"prod",text:o=>itemsSummary(o)},
+      {h:"Gateway",text:o=>o.payment},
+      {h:"Coupon",text:o=>o.coupon},
+      {h:"Reason",cls:"muted",text:o=>o.excludedReason},
+      {h:"Total",num:true,text:o=>money(o.total)},
+    ];
+    if(view==="converted") return [
+      {h:"Pre-Book order",cls:"mono",text:o=>o.name},
+      {h:"Pre-Book date",text:o=>fmtDate(o.date)},
+      {h:"Product",cls:"prod",text:o=>prodText(o)},
+      {h:"Coupon",text:o=>o.coupon},
+      {h:"Converted order",cls:"mono hl first",text:o=>o.match?o.match.name:""},
+      {h:"Conv. date",cls:"hl",text:o=>o.match?fmtDate(o.match.date):""},
+      ...cust(o=>o.match||o,true),
+      {h:"Amount paid",num:true,cls:"hl",text:o=>o.match?money(o.match.total):""},
+      {h:"Match",html:o=>`<span class="tag conv">${o.matchStrong?'strong':'likely'}</span>`,text:o=>o.matchStrong?"strong":"likely"},
+    ];
+    // prebook + pending
+    const base=[
+      {h:"Order ID",cls:"mono",text:o=>o.name},
+      {h:"Created",text:o=>fmtDate(o.date)},
+      ...cust(o=>o),
+      {h:"SKU",html:o=>skuCell(o),text:o=>skuText(o)},
+      {h:"Product",cls:"prod",text:o=>prodText(o)},
+      {h:"Coupon",text:o=>o.coupon},
+      {h:"Flagged by",html:o=>flagTag(o),text:o=>o.why==='sku-is-name'?"SKU name":"keyword"},
+      {h:"Total",num:true,text:o=>money(o.total)},
+    ];
+    if(view==="pending") return base;
+    return base.concat([{h:"Conversion",
+      html:o=>o.match?`<span class="tag conv">converted</span> <span class="mono muted">${esc(o.match.name)}</span>`:`<span class="tag open">pending</span>`,
+      text:o=>o.match?("converted "+o.match.name):"pending"}]);
+  }
+
+  function renderTable(view){
+    const thead=$("#thead"), tbody=$("#tbody");
+    const cols=columnsFor(view);
+    thead.innerHTML="<tr>"+cols.map(c=>`<th class="${c.num?"num":""}">${esc(c.h)}</th>`).join("")+"</tr>";
+
+    const filt = applyFilters(rowsFor(view));
+    if(!filt.length){ tbody.innerHTML=`<tr><td colspan="${cols.length}"><div class="empty-state">No rows match the current filters.</div></td></tr>`; return; }
+
+    const cell = (c,o)=>{
+      const cls=[c.cls||"", c.num?"num":"", c.mono?"mono":""].filter(Boolean).join(" ");
+      let inner;
+      if(c.html) inner=c.html(o);
+      else { const t=c.text(o); inner = (t!==""&&t!=null)?esc(t):"<span class=muted>—</span>"; }
+      return `<td class="${cls}">${inner}</td>`;
+    };
+    const rowCls = o => (view==="converted"||(view!=="dropped"&&view!=="pending"&&o.match)) ? "row-conv" : "";
+
+    const html = filt.slice(0,1500).map(o=>`<tr class="${rowCls(o)}">`+cols.map(c=>cell(c,o)).join("")+"</tr>").join("");
+    tbody.innerHTML = html + (filt.length>1500?`<tr><td colspan="${cols.length}"><div class="empty-state">Showing first 1,500 of ${filt.length.toLocaleString()} rows. Copy the table for the full set.</div></td></tr>`:"");
+  }
+
+  // ---- copy table (matches the on-screen columns & formatting) ----
+  $("#exportBtn").addEventListener("click", ()=>{
+    const cols=columnsFor(lastView);
+    const rows=applyFilters(rowsFor(lastView));
+    if(!rows.length) return;
+    const plain = v => String(v==null?"":v).replace(/\t/g," ").replace(/\r?\n/g," ").trim();
+    // TSV (pastes into Excel/Sheets as columns)
+    const tsv=[cols.map(c=>c.h).join("\t")]
+      .concat(rows.map(o=>cols.map(c=>plain(c.text?c.text(o):"")).join("\t"))).join("\n");
+    // HTML table (keeps structure & alignment when pasted into Excel/Sheets/Docs)
+    const htmlTbl=`<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px">`+
+      `<thead><tr>${cols.map(c=>`<th style="background:#f0f2f5;text-align:${c.num?'right':'left'};padding:4px 8px">${esc(c.h)}</th>`).join("")}</tr></thead>`+
+      `<tbody>${rows.map(o=>`<tr>${cols.map(c=>`<td style="padding:4px 8px;text-align:${c.num?'right':'left'};${/hl/.test(c.cls||'')?'background:#e3f6ee;':''}">${esc(plain(c.text?c.text(o):""))}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+
+    const btn=$("#exportBtn");
+    const restore=t=>{ btn.textContent=t; setTimeout(()=>btn.textContent="⧉ Copy table",2200); };
+    const tsvFallback=()=>{ const ta=document.createElement("textarea"); ta.value=tsv; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); let ok=false; try{ok=document.execCommand("copy");}catch(e){} ta.remove(); restore(ok?"✓ Copied — paste into Excel/Sheets":"Copy failed — select the table"); };
+    if(navigator.clipboard && window.ClipboardItem){
+      try{
+        const item=new ClipboardItem({ "text/html":new Blob([htmlTbl],{type:"text/html"}), "text/plain":new Blob([tsv],{type:"text/plain"}) });
+        navigator.clipboard.write([item]).then(()=>restore("✓ Copied — paste into Excel/Sheets")).catch(tsvFallback);
+      }catch(e){ tsvFallback(); }
+    } else if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(tsv).then(()=>restore("✓ Copied — paste into Excel/Sheets")).catch(tsvFallback);
+    } else tsvFallback();
+  });
+
+  function writeClip(html,tsv,btn,label){
+    const restore=t=>{ btn.textContent=t; setTimeout(()=>btn.textContent=label,2000); };
+    const fb=()=>{ const ta=document.createElement("textarea"); ta.value=tsv; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); let ok=false; try{ok=document.execCommand("copy");}catch(e){} ta.remove(); restore(ok?"✓ Copied":"Copy failed"); };
+    if(navigator.clipboard && window.ClipboardItem){ try{ const it=new ClipboardItem({"text/html":new Blob([html],{type:"text/html"}),"text/plain":new Blob([tsv],{type:"text/plain"})}); navigator.clipboard.write([it]).then(()=>restore("✓ Copied")).catch(fb); }catch(e){ fb(); } }
+    else if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(tsv).then(()=>restore("✓ Copied")).catch(fb); } else fb();
+  }
+  function copyDomTable(tableEl, btn){
+    const trs=[...tableEl.querySelectorAll("tr")];
+    const txt=c=>c.textContent.trim().replace(/\s+/g," ").replace(/·/g,"");
+    const tsv=trs.map(tr=>[...tr.children].map(txt).join("\t")).join("\n");
+    const html=`<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px">`+
+      trs.map(tr=>`<tr>`+[...tr.children].map(c=>{ const tag=c.tagName==="TH"?"th":"td"; const al=c.classList.contains("num")?"right":"left";
+        const bg=c.tagName==="TH"?"background:#f0f2f5;":(c.classList.contains("diag")?"background:#eef0fe;":""); const fw=(c.tagName==="TH"||c.closest("tfoot"))?"font-weight:bold;":"";
+        return `<${tag} style="padding:4px 8px;text-align:${al};${bg}${fw}">${esc(txt(c))}</${tag}>`; }).join("")+`</tr>`).join("")+`</table>`;
+    writeClip(html,tsv,btn,"⧉ Copy");
+  }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function setStatus(msg,err){ const el=$("#status"); if(el){ el.textContent=msg; el.classList.toggle("err",!!err);} }
+})();
+</script>
